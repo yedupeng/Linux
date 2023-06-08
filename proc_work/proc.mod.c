@@ -30,6 +30,9 @@ __used __section("__versions") = {
 	{ 0xa93d270e, "module_layout" },
 	{ 0xd9abe153, "remove_proc_entry" },
 	{ 0xf56ecbc2, "proc_create_data" },
+	{ 0x13c49cc2, "_copy_from_user" },
+	{ 0x6b10bee1, "_copy_to_user" },
+	{ 0x88db9f48, "__check_object_size" },
 	{ 0x5b8239ca, "__x86_return_thunk" },
 	{ 0x92997ed8, "_printk" },
 	{ 0xbdfb6dbb, "__fentry__" },
@@ -38,4 +41,4 @@ __used __section("__versions") = {
 MODULE_INFO(depends, "");
 
 
-MODULE_INFO(srcversion, "DAAEA8645140E5AF5BE9342");
+MODULE_INFO(srcversion, "671E0CBC4231C324E2E898C");

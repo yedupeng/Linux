@@ -1,2 +1,2 @@
-/home/cry/Work/proc_work/proc.o
+/home/cry/work/proc_work/proc.o
 
