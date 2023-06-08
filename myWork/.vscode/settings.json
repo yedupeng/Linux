@@ -1,0 +1,16 @@
+{
+    "files.associations": {
+        "hash_map": "c",
+        "hash_set": "c",
+        "bitset": "c",
+        "chrono": "c",
+        "algorithm": "c",
+        "memory": "c",
+        "condition_variable": "c",
+        "module.h": "c",
+        "kernel.h": "c",
+        "fs.h": "c",
+        "complex": "c"
+    },
+    "ros.distro": "noetic"
+}
