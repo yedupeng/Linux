@@ -36,11 +36,12 @@ int main(void)
     printf("--------------------------------------------------\n");
     int ret;
     ret = ioctl(fd, device_read, &num);
+    printf("I send the ioctl data : %d\n", num);
     ret = ioctl(fd, device_write, &num2);
     printf("I receive the ioctl data : %d\n", num2);
 
     close(fd);
-    printf("the end", sent_buff);
+    printf("the end\n", sent_buff);
 
     return 0;
 }

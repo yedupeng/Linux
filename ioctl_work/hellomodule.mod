@@ -1,2 +1,2 @@
-/home/cry/myWork/hello.o
+/home/cry/work/ioctl_work/hello.o
 

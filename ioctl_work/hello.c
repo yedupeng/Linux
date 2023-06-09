@@ -15,6 +15,7 @@ int numDevice = 1;
 char receive[128] = "Congratulations on getting the data";
 char send[128] = {};
 static int send_num = 666;
+static int read_num = 777;
 
 struct cdev cdev;
 struct class *myClass;
@@ -94,7 +95,8 @@ long int ioctl(struct file *node, unsigned int cmd, unsigned long data)
     switch(cmd)
     {
     case device_read:
-        printk(KERN_INFO "this is ioctl receive cmd\n");
+        err = get_user(read_num, p);
+        printk(KERN_INFO "receive data:%d\n",read_num);
         break;
     
     case device_write:

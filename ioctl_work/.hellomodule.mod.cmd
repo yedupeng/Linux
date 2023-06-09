@@ -1,1 +1,1 @@
-cmd_/home/cry/myWork/hellomodule.mod := { echo  /home/cry/myWork/hello.o;  echo; } > /home/cry/myWork/hellomodule.mod
+cmd_/home/cry/work/ioctl_work/hellomodule.mod := { echo  /home/cry/work/ioctl_work/hello.o;  echo; } > /home/cry/work/ioctl_work/hellomodule.mod

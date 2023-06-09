@@ -32,6 +32,7 @@ __used __section("__versions") = {
 	{ 0xaa71d79c, "cdev_init" },
 	{ 0x3fd78f3b, "register_chrdev_region" },
 	{ 0x21872dcd, "device_destroy" },
+	{ 0x6729d3df, "__get_user_4" },
 	{ 0x6091b333, "unregister_chrdev_region" },
 	{ 0x6b10bee1, "_copy_to_user" },
 	{ 0x5b8239ca, "__x86_return_thunk" },
@@ -49,4 +50,4 @@ __used __section("__versions") = {
 MODULE_INFO(depends, "");
 
 
-MODULE_INFO(srcversion, "703E878C7C29DF01AEFEDAB");
+MODULE_INFO(srcversion, "FD955EF4C8308BDFDA597D8");
