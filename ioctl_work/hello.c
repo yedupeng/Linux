@@ -34,9 +34,9 @@ void mytimer_task(struct timer_list  *timer)
     {
         mask = 0;
     }
+    mod_timer(timer, jiffies + 100);
     wake_up_interruptible(&wait_queue);
 }
-
 
 struct cdev cdev;
 struct class *myClass;
@@ -134,22 +134,23 @@ long int ioctl(struct file *node, unsigned int cmd, unsigned long data)
 
 unsigned int mem_poll(struct file *flip, poll_table *wait)
 {
+    unsigned int flag = 0;
     poll_wait(flip, &wait_queue, wait);
     printk(KERN_INFO "the mask is %d\n", mask);
     if (mask)         
-        mask |= POLLIN | POLLRDNORM; 
-    return mask;
+        flag = POLLIN | POLLRDNORM; 
+    return flag;
 }
 
 struct file_operations hello_fops = 
 {
     .owner = THIS_MODULE,
     .open = open,
+    .poll = mem_poll,
     .release = release,
     .read = read,
     .write = write,
-    .unlocked_ioctl = ioctl,
-    .poll = mem_poll
+    .unlocked_ioctl = ioctl
 };
 
 static int cdev_create(void)

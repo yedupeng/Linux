@@ -40,6 +40,7 @@ __used __section("__versions") = {
 	{ 0x6b10bee1, "_copy_to_user" },
 	{ 0x5b8239ca, "__x86_return_thunk" },
 	{ 0x57e37143, "device_create" },
+	{ 0xc38c83b8, "mod_timer" },
 	{ 0x24d273d1, "add_timer" },
 	{ 0x9f7184fd, "cdev_add" },
 	{ 0xb2fd5ceb, "__put_user_4" },
@@ -56,4 +57,4 @@ __used __section("__versions") = {
 MODULE_INFO(depends, "");
 
 
-MODULE_INFO(srcversion, "C76367F61F0E58DD77C7EF0");
+MODULE_INFO(srcversion, "2CC977EDEC1C3E952859C4F");

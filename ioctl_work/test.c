@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/ioctl.h>
+#include <sys/poll.h>
 #include "ioctl.h"
  
 int main(void)
@@ -40,8 +41,22 @@ int main(void)
     ret = ioctl(fd, device_write, &num2);
     printf("I receive the ioctl data : %d\n", num2);
 
+    while (1)
+    {
+        ret = poll(fd, 1, 5000);
+        if (ret == 0)
+        {
+            printf("time out\n");
+        }
+        else
+        {
+            unsigned char key_val;
+            read(fd, &key_val, 1);
+            printf("key_val = 0x%x\n", key_val);
+        }
+    }
+
     close(fd);
     printf("the end\n", sent_buff);
-
     return 0;
 }
