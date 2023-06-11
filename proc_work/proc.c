@@ -31,7 +31,7 @@ ssize_t read(struct file *filp, char __user *buff, size_t count, loff_t *offp)
 		printk(KERN_INFO "error ! copy_to_user error");
 		return err;
 	}
-	printk(KERN_INFO "send data : %s", wdata);
+	printk(KERN_INFO "send data : %s", rdata);
 	return count;
 }
 

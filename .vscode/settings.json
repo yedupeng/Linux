@@ -4,7 +4,9 @@
         "cdev.h": "c",
         "kernel.h": "c",
         "module.h": "c",
-        "init.h": "c"
+        "init.h": "c",
+        "time.h": "c",
+        "timer.h": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

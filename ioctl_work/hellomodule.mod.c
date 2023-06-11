@@ -30,17 +30,23 @@ __used __section("__versions") = {
 	{ 0xa93d270e, "module_layout" },
 	{ 0xa4398079, "cdev_del" },
 	{ 0xaa71d79c, "cdev_init" },
+	{ 0x2b68bd2f, "del_timer" },
 	{ 0x3fd78f3b, "register_chrdev_region" },
 	{ 0x21872dcd, "device_destroy" },
 	{ 0x6729d3df, "__get_user_4" },
+	{ 0xc6f46339, "init_timer_key" },
 	{ 0x6091b333, "unregister_chrdev_region" },
+	{ 0x15ba50a6, "jiffies" },
 	{ 0x6b10bee1, "_copy_to_user" },
 	{ 0x5b8239ca, "__x86_return_thunk" },
 	{ 0x57e37143, "device_create" },
+	{ 0x24d273d1, "add_timer" },
 	{ 0x9f7184fd, "cdev_add" },
 	{ 0xb2fd5ceb, "__put_user_4" },
 	{ 0x92997ed8, "_printk" },
+	{ 0x65487097, "__x86_indirect_thunk_rax" },
 	{ 0xbdfb6dbb, "__fentry__" },
+	{ 0x3eeb2322, "__wake_up" },
 	{ 0x1f5ed566, "class_destroy" },
 	{ 0x13c49cc2, "_copy_from_user" },
 	{ 0xf852ad99, "__class_create" },
@@ -50,4 +56,4 @@ __used __section("__versions") = {
 MODULE_INFO(depends, "");
 
 
-MODULE_INFO(srcversion, "FD955EF4C8308BDFDA597D8");
+MODULE_INFO(srcversion, "C76367F61F0E58DD77C7EF0");

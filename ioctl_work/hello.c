@@ -5,9 +5,14 @@
 #include <linux/cdev.h>
 #include <linux/device.h>
 #include <asm/uaccess.h>
+#include <linux/timer.h>
+#include <linux/sched.h>
+#include <linux/wait.h>
+#include <linux/poll.h>
 #include "ioctl.h"
 
 MODULE_LICENSE ("GPL");
+static DECLARE_WAIT_QUEUE_HEAD(wait_queue);
 
 int major = 230;
 int minor = 0;
@@ -16,6 +21,22 @@ char receive[128] = "Congratulations on getting the data";
 char send[128] = {};
 static int send_num = 666;
 static int read_num = 777;
+struct timer_list mytimer;
+static int mask = 0;
+
+void mytimer_task(struct timer_list  *timer)
+{
+    printk(KERN_INFO "this is time interrupt\n");
+    if(mask < 999)
+    {
+        mask++;
+    }else
+    {
+        mask = 0;
+    }
+    wake_up_interruptible(&wait_queue);
+}
+
 
 struct cdev cdev;
 struct class *myClass;
@@ -111,6 +132,15 @@ long int ioctl(struct file *node, unsigned int cmd, unsigned long data)
     return err;
 }
 
+unsigned int mem_poll(struct file *flip, poll_table *wait)
+{
+    poll_wait(flip, &wait_queue, wait);
+    printk(KERN_INFO "the mask is %d\n", mask);
+    if (mask)         
+        mask |= POLLIN | POLLRDNORM; 
+    return mask;
+}
+
 struct file_operations hello_fops = 
 {
     .owner = THIS_MODULE,
@@ -118,7 +148,8 @@ struct file_operations hello_fops =
     .release = release,
     .read = read,
     .write = write,
-    .unlocked_ioctl = ioctl
+    .unlocked_ioctl = ioctl,
+    .poll = mem_poll
 };
 
 static int cdev_create(void)
@@ -152,6 +183,10 @@ static int __init myModule1(void)
 {
     int result;
     devno = MKDEV(major, minor);
+
+    mytimer.expires = jiffies + 100;
+    timer_setup(&mytimer, mytimer_task, 0);
+    add_timer(&mytimer);
     // 设备号注册，用于后续字符设备注册
     result = register_chrdev_region(devno, numDevice, "hello");
     if(result<0)
@@ -170,6 +205,7 @@ static void __exit myModule2(void)
     cdev_del(&cdev);
     device_destroy(myClass, devno);
     class_destroy(myClass);
+    del_timer(&mytimer);
     unregister_chrdev_region(devno, numDevice);
     printk (KERN_INFO "exit finish\n");
 }

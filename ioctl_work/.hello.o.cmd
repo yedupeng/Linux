@@ -923,6 +923,11 @@ deps_/home/cry/work/ioctl_work/hello.o := \
   include/linux/device/driver.h \
   arch/x86/include/asm/device.h \
   include/linux/pm_wakeup.h \
+  include/linux/poll.h \
+  include/uapi/linux/poll.h \
+  arch/x86/include/generated/uapi/asm/poll.h \
+  include/uapi/asm-generic/poll.h \
+  include/uapi/linux/eventpoll.h \
   /home/cry/work/ioctl_work/ioctl.h \
 
 /home/cry/work/ioctl_work/hello.o: $(deps_/home/cry/work/ioctl_work/hello.o)
