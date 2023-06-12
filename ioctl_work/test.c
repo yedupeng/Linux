@@ -50,9 +50,7 @@ int main(void)
         }
         else
         {
-            unsigned char key_val;
-            read(fd, &key_val, 1);
-            printf("key_val = 0x%x\n", key_val);
+            printf("the mask is %d\n", ret);
         }
     }
 

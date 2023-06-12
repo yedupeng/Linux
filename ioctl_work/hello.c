@@ -22,7 +22,7 @@ char send[128] = {};
 static int send_num = 666;
 static int read_num = 777;
 struct timer_list mytimer;
-static int mask = 0;
+static unsigned int mask = 0;
 
 void mytimer_task(struct timer_list  *timer)
 {
@@ -134,12 +134,9 @@ long int ioctl(struct file *node, unsigned int cmd, unsigned long data)
 
 unsigned int mem_poll(struct file *flip, poll_table *wait)
 {
-    unsigned int flag = 0;
     poll_wait(flip, &wait_queue, wait);
     printk(KERN_INFO "the mask is %d\n", mask);
-    if (mask)         
-        flag = POLLIN | POLLRDNORM; 
-    return flag;
+    return mask;
 }
 
 struct file_operations hello_fops = 

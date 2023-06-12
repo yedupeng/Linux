@@ -6,7 +6,8 @@
         "module.h": "c",
         "init.h": "c",
         "time.h": "c",
-        "timer.h": "c"
+        "timer.h": "c",
+        "errno.h": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }
