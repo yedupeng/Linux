@@ -7,7 +7,13 @@
         "init.h": "c",
         "time.h": "c",
         "timer.h": "c",
-        "errno.h": "c"
+        "errno.h": "c",
+        "nsc_gpio.h": "c",
+        "*.tcc": "c",
+        "fstream": "c",
+        "memory": "c",
+        "condition_variable": "c",
+        "mutex": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

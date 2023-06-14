@@ -1,0 +1,1 @@
+cmd_/home/cry/work/7621_io_test/IO.ko := ld -r  -m elf_x86_64 -z noexecstack   --build-id=sha1  -T scripts/module.lds -o /home/cry/work/7621_io_test/IO.ko /home/cry/work/7621_io_test/IO.o /home/cry/work/7621_io_test/IO.mod.o;  true
