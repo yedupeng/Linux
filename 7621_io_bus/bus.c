@@ -6,13 +6,23 @@
 #include <linux/platform_device.h>
 #include <asm/uaccess.h>
 #include <asm/io.h>
+#include <linux/poll.h>
 #include <linux/cdev.h>
 #include<linux/spinlock.h>
-#include <linux/delay.h>
 #include "ioctl.h"
 
 #define led_name "gpio_led"
 static DEFINE_SPINLOCK(test_lock);
+static DECLARE_WAIT_QUEUE_HEAD(wait_queue);
+
+#define DIDO0 (0xBE000B08)
+#define DIDO1 (0xBE000B0C)
+#define DIDO2 (0xBE000B10)
+#define DIDO3 (0xBE000B14)
+#define DIDO4 (0xBE000B18)
+#define DIDO5 (0xBE000B1C)
+#define DIDO6 (0xBE000B20)
+#define DIDO7 (0xBE000B24)
 
 int io_major = 200;
 int io_minor = 0;
@@ -20,44 +30,51 @@ int numDevice = 1;
 struct cdev cdev;
 dev_t devno;
 struct class *myClass;
+struct timer_list mytimer;
 
-#define CTRL_1 (0xBE000604)
-#define POL_1 (0xBE000614)
-#define DATA_1 (0xBE000624)
-#define DSET_1 (0xBE000634)
-#define DCLR_1 (0xBE000644)
-#define GPIO_MODE (0xBE000060)
+#define BUF_LEN 64
+static unsigned int g_keys[BUF_LEN];
+unsigned int r, w;
+#define NEXT_POS(x) ((x+1)%BUF_LEN)
 
-#define _ra_inl(addr) (*(volatile unsigned int *)(addr))
-#define _ra_outl(addr, value) (*(volatile unsigned int *)(addr) = (value))
-
-static void __iomem *GPIO_CTRL_1;
-static void __iomem *GPIO_POL_1;
-static void __iomem *GPIO_DATA_1;
-static void __iomem *GPIO_DSET_1;
-static void __iomem *GPIO_DCLR_1;
-static void __iomem *GPIO_MODE_1;
-
-unsigned int ral_inl(unsigned int addr)
+void mytimer_task(struct timer_list  *timer)
 {
-    unsigned int retval = _ra_inl(addr);
-    printk(KERN_NOTICE "this ral_inl value is %d\n", retval);
-    return retval;
+    mod_timer(timer, jiffies + 100);
+    wake_up(&wait_queue);
 }
 
-unsigned int ral_outl(unsigned addr, unsigned int val)
+static unsigned int buff_is_empty()
 {
-    _ra_outl(addr, val);
-    printk(KERN_NOTICE "this ral_out value is %d\n", val);
-    return val;
+    return (r == w);
+} 
+
+static unsigned int buff_is_full()
+{
+    return (r == NEXT_POS(w));
 }
 
-#define ra_aor(addr, a_mask, o_value) ral_outl(addr, (_ra_inl(addr)&(a_mask)) | (o_value))
-#define ra_and(addr, a_mask) ra_aor(addr, a_mask, 0)
-#define ra_or(addr, o_value) ra_aor(addr, -1, o_value)
+static unsigned int get_buff()
+{
+    unsigned int key = 0;
+    if(!buff_is_empty())
+    {
+        key = g_keys[r];
+        r = NEXT_POS(r);
+    }
+    return key;
+}
 
-#define SPICTL_SPIENA_HIGH (1<<2)
+static unsigned int put_buff(unsigned int key)
+{
+    if(!buff_is_full())
+    {
+        g_keys[w] = key;
+        w = NEXT_POS(w);
+    }
+    return w;
+}
 
+#define ra_inl(addr) (*(volatile unsigned int *)(addr))
 
 static int open(struct inode *inode, struct file *filp)
 {
@@ -75,11 +92,12 @@ ssize_t read(struct file *filp, char __user *buff, size_t count, loff_t *offp)
     return count;
 }
 
+
+
 ssize_t write(struct file *filp, const char __user *buff, size_t count, loff_t *offp)
 {
     return count;
 }
-
 
 long int ioctl(struct file *node, unsigned int cmd, unsigned long data)
 {
@@ -87,6 +105,7 @@ long int ioctl(struct file *node, unsigned int cmd, unsigned long data)
     long err;
     void *args = (void *)data;
     int *p = args;
+    
 
     if(_IOC_TYPE(cmd) != IO_MAGIC) return -ENOTTY;
     if(_IOC_NR(cmd) > device_max) return -ENOTTY;
@@ -96,32 +115,37 @@ long int ioctl(struct file *node, unsigned int cmd, unsigned long data)
         err = !access_ok(_IOC_READ, (void __user *)data, _IOC_SIZE(cmd));
     unsigned int value = 0;
 
-  //  _ra_inl(GPIO_MODE) &= ~(3<<16);
-   // _ra_inl(GPIO_MODE) |= 1<<16;
-
-    switch (cmd)
+    switch(cmd)
     {
-    case device_read:
-	_ra_inl(CTRL_1) |= (1<<10);
-	_ra_inl(POL_1) &= ~(1<<10);
-        _ra_inl(DSET_1) |= (1<<10);
-   	msleep(100);
-   	
-        break;
+       case device_read: 
+            put_buff(ra_inl(DIDO0));
+            put_buff(ra_inl(DIDO1));
+            put_buff(ra_inl(DIDO2));
+            put_buff(ra_inl(DIDO3));
+            put_buff(ra_inl(DIDO4));
+            put_buff(ra_inl(DIDO5));
+            put_buff(ra_inl(DIDO6));
+            put_buff(ra_inl(DIDO7));
+
+            break;
+
+       case device_write:
+            break;
+       default:
+            break;
     
-    case device_write:
-	_ra_inl(CTRL_1) |= (1<<10);
-	_ra_inl(POL_1) &= ~(1<<10);
-        _ra_inl(DCLR_1) |= (1<<10);
-   	msleep(100);
-        break;
-
-    default:
-        break;
     }
+    return data;
+}
 
-    spin_unlock(&test_lock);
-    return err;
+unsigned int mem_poll(struct file *filp, poll_table *wait)
+{
+    struct mem_dev  *dev = filp->private_data; 
+    unsigned int mask = 0;
+    
+    poll_wait(filp, &wait_queue,  wait);
+    mask = get_buff();
+    return mask;
 }
 
 struct file_operations io_fos = 
@@ -131,7 +155,8 @@ struct file_operations io_fos =
     .release = release,
     .read = read,
     .write = write,
-    .unlocked_ioctl = ioctl
+    .unlocked_ioctl = ioctl,
+    .poll = mem_poll
 };
 
 void dev_set(void)
@@ -163,6 +188,9 @@ static int __init io_init(void)
     devno = MKDEV(io_major, io_minor);
     int ret;
     ret = register_chrdev_region(devno, numDevice, "gpio_contral");
+    mytimer.expires = jiffies + 100;
+    timer_setup(&mytimer, mytimer_task, 0);
+    add_timer(&mytimer);
     if(ret < 0)
     {
         printk(KERN_ERR "register_chrdev_region error\n");
@@ -170,11 +198,6 @@ static int __init io_init(void)
     printk(KERN_NOTICE "init\n");
     dev_set();
     cdev_create();
-
-   // GPIO_DATA_1 = ioremap(DATA_1, 4);
-   // GPIO_DSET_1 = ioremap(DSET_1, 4);
-  //  GPIO_CTRL_1 = ioremap(CTRL_1, 4);
-  //  GPIO_MODE_1 = ioremap(GPIO_MODE, 4);
     return 0;
 }
 
@@ -186,10 +209,6 @@ static void __exit io_exit(void)
     class_destroy(myClass);
     unregister_chrdev_region(devno, numDevice);
 
- //   iounmap(GPIO_CTRL_1);
-    // iounmap(GPIO_POL_0);
-  //  iounmap(GPIO_DATA_1);
-  //  iounmap(GPIO_DSET_1);
 }
 
 MODULE_LICENSE("GPL");
