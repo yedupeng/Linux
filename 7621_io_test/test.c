@@ -13,6 +13,7 @@
 int main(int argc, char* argv[])
 {
     int fd;
+    int ret;
     char sent_buff[128] = "this is a test";
     char read_buff[128] = {};
     int num = 50;
@@ -23,7 +24,7 @@ int main(int argc, char* argv[])
         perror("open");
         exit(0);
     }
-    if(argv[2] == 1)
+    if(atoi(argv[0]) == 1)
     {
         ret = ioctl(fd, device_write, &num2);
     }else
@@ -32,6 +33,6 @@ int main(int argc, char* argv[])
     }
 
     close(fd);
-    printf("the end\n", sent_buff);
+    printf("the end\n");
     return 0;
 }

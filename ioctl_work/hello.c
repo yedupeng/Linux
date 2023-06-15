@@ -117,7 +117,7 @@ long int ioctl(struct file *node, unsigned int cmd, unsigned long data)
     {
     case device_read:
         err = get_user(read_num, p);
-        printk(KERN_INFO "receive data:%d\n",read_num);
+        printk(KERN_INFO "receive data:%x\n",read_num);
         break;
     
     case device_write:

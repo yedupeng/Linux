@@ -8,7 +8,10 @@
 #include <asm/io.h>
 #include <linux/poll.h>
 #include <linux/cdev.h>
-#include<linux/spinlock.h>
+#include <linux/spinlock.h>
+#include <linux/wait.h>
+#include <linux/sched.h>
+#include <linux/timer.h>
 #include "ioctl.h"
 
 #define led_name "gpio_led"
@@ -188,8 +191,10 @@ static int __init io_init(void)
     devno = MKDEV(io_major, io_minor);
     int ret;
     ret = register_chrdev_region(devno, numDevice, "gpio_contral");
+    init_timer(&mytimer);
+    mytimer.function = mytimer_task;
     mytimer.expires = jiffies + 100;
-    timer_setup(&mytimer, mytimer_task, 0);
+    mytimer.data = 0;
     add_timer(&mytimer);
     if(ret < 0)
     {
