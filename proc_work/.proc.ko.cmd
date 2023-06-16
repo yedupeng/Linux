@@ -1,1 +1,0 @@
-cmd_/home/cry/work/proc_work/proc.ko := ld -r  -m elf_x86_64 -z noexecstack   --build-id=sha1  -T scripts/module.lds -o /home/cry/work/proc_work/proc.ko /home/cry/work/proc_work/proc.o /home/cry/work/proc_work/proc.mod.o;  true
