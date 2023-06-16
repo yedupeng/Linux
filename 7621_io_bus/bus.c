@@ -12,12 +12,15 @@
 #include <linux/wait.h>
 #include <linux/sched.h>
 #include <linux/timer.h>
+#include <linux/delay.h>
+#include<linux/spinlock.h>
 #include "ioctl.h"
 
 #define led_name "gpio_led"
 static DEFINE_SPINLOCK(test_lock);
 static DECLARE_WAIT_QUEUE_HEAD(wait_queue);
 
+// 定义寄存器
 #define DIDO0 (0xBE000B08)
 #define DIDO1 (0xBE000B0C)
 #define DIDO2 (0xBE000B10)
@@ -27,6 +30,15 @@ static DECLARE_WAIT_QUEUE_HEAD(wait_queue);
 #define DIDO6 (0xBE000B20)
 #define DIDO7 (0xBE000B24)
 
+#define CTRL_1 (0xBE000604)
+#define POL_1 (0xBE000614)
+#define DATA_1 (0xBE000624)
+#define DSET_1 (0xBE000634)
+#define DCLR_1 (0xBE000644)
+
+// 对寄存器操作函数
+#define _ra_inl(addr) (*(volatile unsigned int *)(addr))
+
 int io_major = 200;
 int io_minor = 0;
 int numDevice = 1;
@@ -35,52 +47,113 @@ dev_t devno;
 struct class *myClass;
 struct timer_list mytimer;
 
+// 定义接收发送循环缓冲区
 #define BUF_LEN 64
 static unsigned int g_keys[BUF_LEN];
-unsigned int r, w;
+static unsigned int g1_keys[BUF_LEN];
+unsigned int r = 0, w = 0, r1 = 0, w1 = 0;
 #define NEXT_POS(x) ((x+1)%BUF_LEN)
 
-void mytimer_task(struct timer_list  *timer)
+// 判断缓冲区是否为空
+static unsigned int buff_is_empty(int id)
 {
-    mod_timer(timer, jiffies + 100);
-    wake_up(&wait_queue);
-}
-
-static unsigned int buff_is_empty()
-{
-    return (r == w);
+    if(id)
+    	return (r == w);
+    else
+	return (r1 == w1);
 } 
 
-static unsigned int buff_is_full()
+// 判断缓冲区是否满
+static unsigned int buff_is_full(int id)
 {
-    return (r == NEXT_POS(w));
+    if(id)
+    	return (r == NEXT_POS(w));
+    else
+	return (r1 == NEXT_POS(w1));
 }
 
-static unsigned int get_buff()
+// 从缓冲区中获取数据
+static unsigned int get_buff(int id)
 {
     unsigned int key = 0;
-    if(!buff_is_empty())
+    if(!buff_is_empty(1)&&id == 1)
     {
         key = g_keys[r];
         r = NEXT_POS(r);
+    }else if(!buff_is_empty(0)&&id == 0)
+    {
+	key = g1_keys[r1];
+	r1 = NEXT_POS(r1);
     }
     return key;
 }
 
-static unsigned int put_buff(unsigned int key)
+// 存储数据到缓冲区中
+static unsigned int put_buff(unsigned int key, int id)
 {
-    if(!buff_is_full())
+    if(!buff_is_full(1)&&id == 1)
     {
         g_keys[w] = key;
         w = NEXT_POS(w);
+        return w;
+    }else if(!buff_is_full(0)&&id == 0)
+    {
+        g1_keys[w1] = key;
+        w1 = NEXT_POS(w1);
+        return w1;   
     }
-    return w;
 }
 
 #define ra_inl(addr) (*(volatile unsigned int *)(addr))
 
+// 定时器触发函数，用于获取总线上DIDO0~7各寄存器的值，同时输出输出缓冲区中的数据
+void mytimer_task(struct timer_list  *timer)
+{
+    mod_timer(&mytimer, jiffies + 400);
+    printk(KERN_INFO "time interrupt\n");
+    wake_up(&wait_queue);
+    if(!buff_is_empty(0))
+    {
+       
+       unsigned int key = get_buff(0);
+       if(key)
+       {
+       	 _ra_inl(CTRL_1) |= (1<<10);
+	 _ra_inl(POL_1) &= ~(1<<10);
+         _ra_inl(DSET_1) |= (1<<10);
+        }else
+        {
+	 _ra_inl(CTRL_1) |= (1<<10);
+	 _ra_inl(POL_1) &= ~(1<<10);
+         _ra_inl(DCLR_1) |= (1<<10);
+        }
+    }else
+    {
+      	_ra_inl(CTRL_1) |= (1<<10);
+	_ra_inl(POL_1) &= ~(1<<10);
+        _ra_inl(DCLR_1) |= (1<<10);
+    }
+    put_buff(ra_inl(DIDO0), 1);
+   // printk(KERN_NOTICE "the DIDO0 data is %x\n", ra_inl(DIDO0));
+    put_buff(ra_inl(DIDO1), 1);
+  //  printk(KERN_NOTICE "the DIDO1 data is %x\n", ra_inl(DIDO1));
+    put_buff(ra_inl(DIDO2), 1);
+   // printk(KERN_NOTICE "the DIDO2 data is %x\n", ra_inl(DIDO2));
+    put_buff(ra_inl(DIDO3), 1);
+    //printk(KERN_NOTICE "the DIDO3 data is %x\n", ra_inl(DIDO3));
+    put_buff(ra_inl(DIDO4), 1);
+    //printk(KERN_NOTICE "the DIDO4 data is %x\n", ra_inl(DIDO4));
+    put_buff(ra_inl(DIDO5), 1);
+    //printk(KERN_NOTICE "the DIDO5 data is %x\n", ra_inl(DIDO5));
+    put_buff(ra_inl(DIDO6), 1);
+    //printk(KERN_NOTICE "the DIDO6 data is %x\n", ra_inl(DIDO6));
+    put_buff(ra_inl(DIDO7), 1);
+    //printk(KERN_NOTICE "the DIDO7 data is %x\n", ra_inl(DIDO7));
+}
+
 static int open(struct inode *inode, struct file *filp)
 {
+    printk(KERN_INFO "open success\n");
     return 0;   
 }
 
@@ -95,19 +168,18 @@ ssize_t read(struct file *filp, char __user *buff, size_t count, loff_t *offp)
     return count;
 }
 
-
-
 ssize_t write(struct file *filp, const char __user *buff, size_t count, loff_t *offp)
 {
     return count;
 }
 
+// 用于用户选择接收还是发送
 long int ioctl(struct file *node, unsigned int cmd, unsigned long data)
 {
     spin_lock(&test_lock);
     long err;
     void *args = (void *)data;
-    int *p = args;
+    unsigned int *p = args;
     
 
     if(_IOC_TYPE(cmd) != IO_MAGIC) return -ENOTTY;
@@ -117,37 +189,39 @@ long int ioctl(struct file *node, unsigned int cmd, unsigned long data)
     else if(_IOC_DIR(cmd)&_IOC_READ)
         err = !access_ok(_IOC_READ, (void __user *)data, _IOC_SIZE(cmd));
     unsigned int value = 0;
+    unsigned int receive_data;
 
     switch(cmd)
     {
        case device_read: 
-            put_buff(ra_inl(DIDO0));
-            put_buff(ra_inl(DIDO1));
-            put_buff(ra_inl(DIDO2));
-            put_buff(ra_inl(DIDO3));
-            put_buff(ra_inl(DIDO4));
-            put_buff(ra_inl(DIDO5));
-            put_buff(ra_inl(DIDO6));
-            put_buff(ra_inl(DIDO7));
-
+	    receive_data = get_buff(1);
+            put_user(receive_data, p);
             break;
-
+	    
        case device_write:
+            put_buff(*p, 0);
+            printk(KERN_NOTICE "the input data is %d\n", *p);
             break;
+
        default:
             break;
     
     }
+    spin_unlock(&test_lock);
     return data;
 }
 
+// 提醒用户接收缓冲区非空，请尽快拿走数据
 unsigned int mem_poll(struct file *filp, poll_table *wait)
 {
     struct mem_dev  *dev = filp->private_data; 
     unsigned int mask = 0;
     
-    poll_wait(filp, &wait_queue,  wait);
-    mask = get_buff();
+    if(!buff_is_empty(1))
+    {
+       mask = POLLIN;
+       printk(KERN_NOTICE "the buffer not empty, you should take away the data\n");
+    }
     return mask;
 }
 
@@ -192,9 +266,9 @@ static int __init io_init(void)
     int ret;
     ret = register_chrdev_region(devno, numDevice, "gpio_contral");
     init_timer(&mytimer);
+    mytimer.data = 250;
     mytimer.function = mytimer_task;
-    mytimer.expires = jiffies + 100;
-    mytimer.data = 0;
+    mytimer.expires = jiffies + 1000;
     add_timer(&mytimer);
     if(ret < 0)
     {
@@ -212,6 +286,7 @@ static void __exit io_exit(void)
     cdev_del(&cdev);
     device_destroy(myClass, devno);
     class_destroy(myClass);
+    del_timer(&mytimer);
     unregister_chrdev_region(devno, numDevice);
 
 }

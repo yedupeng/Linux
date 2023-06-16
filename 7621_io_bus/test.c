@@ -10,26 +10,45 @@
 #include <sys/poll.h>
 #include "ioctl.h"
  
-int main(void)
+int main(int argc, char* argv[])
 {
     int fd;
-    char sent_buff[128] = "this is a test";
-    char read_buff[128] = {};
-    int num = 50;
-    int num2 = 0;
+    struct pollfd fds[1];
+    int ret;
+    unsigned int num = 50;
+    int num2 = argv[3]-'0';
 
-    fd = open ("/dev/hello_node", O_RDWR);
+    fd = open (argv[1], O_RDWR);
     if (fd < 0) {
         perror("open");
         exit(0);
     }
-    while (1)
-    {
-        ret = poll(fd, 1, 5000);
-        printf("the data is %d", ret);
-    }
 
+// 通过ioctlk控制输入输出
+/*
+    if(atoi(argv[2]) == 1)
+    {
+        ret = ioctl(fd, device_write, &num2);
+    }else
+    {
+        ret = ioctl(fd, device_read, &num);
+     	printf("the data is %x", num);
+    }
+*/
+    fds[0].fd = fd;
+    fds[0].events = POLLIN;
+    while(1)
+    {
+   	 ret = poll(fds, 1, 2000);
+  	 if(ret != -1)
+         {
+           printf("you shoud to get the data\n");
+           ioctl(fd, device_read, &num);
+           printf("the data is %x\n", num);
+         }
+    }
     close(fd);
-    printf("the end\n", sent_buff);
+    printf("the end\n");
     return 0;
 }
+  
