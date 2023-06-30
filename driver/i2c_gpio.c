@@ -4,7 +4,6 @@
 #include <linux/init.h>
 #include <linux/nsc_gpio.h>
 #include <asm/uaccess.h>
-#include <asm/io.h>
 #include <linux/poll.h>
 #include <linux/cdev.h>
 #include <linux/spinlock.h>
@@ -14,25 +13,39 @@
 #include <linux/delay.h>
 #include <linux/mutex.h>
 #include <linux/interrupt.h>
-#include "ioctl.h"
+#include <asm/tc3162/tc3162.h>
+#include <asm/tc3162/ledcetrl.h>
+// #include "ioctl.h"
 
 #define led_name "gpio_led"
 static DEFINE_SPINLOCK(test_lock);
 static DECLARE_WAIT_QUEUE_HEAD(wait_queue);
 static DEFINE_MUTEX(mymutex);
 
-#define CR_GPIO_BASE       	0xBFBF0200
-#define CR_GPIO_CTRL	    (CR_GPIO_BASE + 0x00)
-#define CR_GPIO_DATA	    (CR_GPIO_BASE + 0x04)
-#define CR_GPIO_ODRAIN      (CR_GPIO_BASE + 0x14)
-
 #define BUF_LEN 64
 #define _ra_inl(addr) (*(volatile unsigned int *)(addr))
 #define NEXT_POS(x) ((x+1)%BUF_LEN)
-#define NEXT_POS1(x,len) ((x+len)%BUF_LEN)
-#define sleep_time 10
+#define sleep_time 5
+#define WLAN_LED_ON  1
+#define WLAN_LED_OFF 0
+#define WLAN_IIC_OEN  2
+#define WLAN_IIC_IEN  3
 
-int io_major = 200;
+#define magic_id 'k'
+
+static inline unsigned int regRead32(unsigned long reg)		\
+{						  	\
+	return readl(reg);			  	\
+}
+
+static inline void regWrite32(unsigned long reg, uint32 vlaue)	\
+{                                                	\
+	writel(vlaue, reg);                      	\
+}
+
+#define LED_GET_GPIO_DATA(x) ((x>31)?(regRead32(CR_GPIO_DATA1)&(1<<(x-32))):(regRead32(CR_GPIO_DATA)&(1<<x)))
+
+int io_major = 201;
 int io_minor = 0;
 int numDevice = 1;
 struct cdev cdev;
@@ -42,44 +55,168 @@ struct timer_list mytimer;
 static unsigned int *lenth;
 static unsigned int value;
 static int irqno;
+unsigned int flag = 2;
+unsigned int flag1 = 0;
 
+#define LED_MODE(x)		((x) & LED_MODE_MASK) 
+#define LED_BICOLOR(x)	((x) & LED_MODE_BICOLOR) 
+#define LED_GPIO_MODE(x) (((x) & 0xff00) >> 8)
+#define LED_GPIO1(x)	(((x) & 0xf0) >> 4)
+#define LED_GPIO2(x)	((x) & 0x0f)
+#define LED_GPIO1_NEW(x)	(((x) & 0xff00) >> 8)
+#define LED_GPIO2_NEW(x)	((x) & 0xff)
 
-struct msg
-{
-  unsigned int* buff;
-  unsigned int len;	
-}msg;
+#define REG_SETBITS(reg, bitsmask, bits) (regWrite32(reg, (regRead32(reg) & ~(bitsmask)) | (bits)))
+#define REG_CLRBITS(reg, bits) (regWrite32(reg, regRead32(reg) & ~(bits)))
+
+#define DO_IIC_SH(x, b) do {	gpio_spin_lock(); 					\
+								if (b) {						\
+									if(LED_GPIO_MODE(x)){	\
+										unsigned int value1 = regRead32(CR_GPIO_DATA);	\
+										unsigned int value2 = regRead32(CR_GPIO_DATA1);	\
+										unsigned int flag = 0;	\
+										if(LED_GPIO1_NEW(x) > 31){\
+											value2 |= (1<<(LED_GPIO1_NEW(x)-32));	\
+										}else{	\
+											value1 |= (1<<(LED_GPIO1_NEW(x)));	\
+										}	\
+										if(LED_GPIO2_NEW(x) > 31){\
+											value2 |= (1<<(LED_GPIO2_NEW(x)-32));	\
+											flag = 1;\
+										}else{	\
+											value1 |= (1<<(LED_GPIO2_NEW(x)));	\
+										}	\
+										if(flag){	\
+											regWrite32(CR_GPIO_DATA1,value2);				\
+											regWrite32(CR_GPIO_DATA,value1);				\
+										}else{	\
+											regWrite32(CR_GPIO_DATA,value1);				\
+											regWrite32(CR_GPIO_DATA1,value2);				\
+										}	\
+									}else{	\
+										regWrite32(CR_GPIO_DATA,regRead32(CR_GPIO_DATA)|(1<<(LED_GPIO1(x))));	\
+										regWrite32(CR_GPIO_DATA,regRead32(CR_GPIO_DATA)|(1<<(LED_GPIO2(x))));	\
+									}	\
+								} else {						\
+									if(x > 31){					\
+										regWrite32(CR_GPIO_DATA1,regRead32(CR_GPIO_DATA1)|(1<<(x-32)));	\
+									}else{						\
+										regWrite32(CR_GPIO_DATA,regRead32(CR_GPIO_DATA)|(1<<x));	\
+									}						\
+								}													\
+							gpio_spin_unlock(); \
+						} while (0)
+
+#define DO_IIC_SL(x, b) do {	gpio_spin_lock();							\
+							\
+								if (b) {						\
+									if(LED_GPIO_MODE(x)){	\
+										unsigned int value1 = regRead32(CR_GPIO_DATA);	\
+										unsigned int value2 = regRead32(CR_GPIO_DATA1);	\
+										int flag = 0;\
+										if(LED_GPIO1_NEW(x) > 31){\
+											value2 &= ~ (1<<(LED_GPIO1_NEW(x)-32));	\
+										}else{	\
+											value1 &= ~ (1<<(LED_GPIO1_NEW(x)));	\
+										}	\
+										if(LED_GPIO2_NEW(x) > 31){\
+											value2 |= (1<<(LED_GPIO2_NEW(x)-32));	\
+											flag = 1;\
+										}else{	\
+											value1 |= (1<<(LED_GPIO2_NEW(x)));	\
+										}	\
+										if(flag){	\
+											regWrite32(CR_GPIO_DATA1,value2);				\
+											regWrite32(CR_GPIO_DATA,value1);				\		
+										}else{\
+											regWrite32(CR_GPIO_DATA,value1);				\
+											regWrite32(CR_GPIO_DATA1,value2);				\	
+										}\				
+									}else{						\	
+										regWrite32(CR_GPIO_DATA,regRead32(CR_GPIO_DATA)& ~(1<<(LED_GPIO1(x))));	\
+										regWrite32(CR_GPIO_DATA,regRead32(CR_GPIO_DATA)|(1<<(LED_GPIO2(x))));	\
+									}	\
+								} else {						\
+									if(x > 31){					\
+										regWrite32(CR_GPIO_DATA1,regRead32(CR_GPIO_DATA1)& ~(1<<(x-32)));	\
+									}else{						\
+										regWrite32(CR_GPIO_DATA,regRead32(CR_GPIO_DATA)& ~(1<<x));	\
+									}						\
+								} 							\
+														\
+							gpio_spin_unlock(); \
+						} while (0)
+
+#define IIC_OEN(x)		do { 		\
+									if(x > 31){							\
+										if(x > 47){						\
+											REG_SETBITS(CR_GPIO_CTRL3, 0x3<<((x-48)*2), 1<<((x-48)*2)); \
+										}else{							\
+											REG_SETBITS(CR_GPIO_CTRL2, 0x3<<((x-32)*2), 1<<((x-32)*2)); \
+										}								\
+										REG_SETBITS(CR_GPIO_ODRAIN1, 0x1<<(x-32), 1<<(x-32)); \
+									}									\
+									else{								\
+										if(x > 15){						\
+											REG_SETBITS(CR_GPIO_CTRL1,0x3<<((x-16)*2), 1<<((x-16)*2)); \
+										}else{							\
+											REG_SETBITS(CR_GPIO_CTRL,0x3<<((x)*2), 1<<((x)*2)); \
+										}								\
+										REG_SETBITS(CR_GPIO_ODRAIN, 0x1<<(x), 1<<(x)); \
+									}									\
+								\
+				} while(0)
+/* input enable */
+#define IIC_IEN(x)		do { 		\
+									if(x > 31){							\
+										if(x > 47)						\
+											REG_CLRBITS(CR_GPIO_CTRL3, (0x00000003 << ((x-48)* 2)));	\
+										else							\
+											REG_CLRBITS(CR_GPIO_CTRL2, (0x00000003 << ((x-32)* 2))); \
+										REG_CLRBITS(CR_GPIO_ODRAIN1, (0x00000001 << (x-32))); \
+									}									\
+									else{								\
+										if(x > 15)						\
+											REG_CLRBITS(CR_GPIO_CTRL1,(0x00000003 << ((x-16)* 2)));	\
+										else							\
+											REG_CLRBITS(CR_GPIO_CTRL,(0x00000003 << (x* 2)));	\
+										REG_CLRBITS(CR_GPIO_ODRAIN,(0x00000001 << (x))); \
+									}									\
+								\
+				} while(0)
 
 #define ra_inl(addr) (*(volatile unsigned int *)(addr))
 
 static int gpio_init(void)
 {
     // 输出使能
-    _ra_inl(CR_GPIO_ODRAIN) |= 1<<1;
-    _ra_inl(CR_GPIO_ODRAIN) |= 1<<27;
-    // 设置GPIO输出模式
-    _ra_inl(CR_GPIO_CTRL) |= 1<<1;
-    _ra_inl(CR_GPIO_CTRL) |= 1<<27;
+    IIC_OEN(1);
+    IIC_OEN(27);
     // 写入数据
-    _ra_inl(CR_GPIO_DATA) |= 1<<27;
-    _ra_inl(CR_GPIO_DATA) |= 1<<1;
+    DO_IIC_SH(27, 0);
+    unsigned int ack = LED_GET_GPIO_DATA(1);
+    printk(KERN_INFO "the pre data is %d\n",(ack>>1));
+    DO_IIC_SH(1, 0);
+    ack = LED_GET_GPIO_DATA(1);
+    printk(KERN_INFO "the aft data is %d\n",(ack>>1));
+    IIC_IEN(26);
     return 0;
 }
 
 static int start(void)
 {
     msleep(sleep_time);
-    _ra_inl(CR_GPIO_DATA) &= ~(1<<27);
+    DO_IIC_SL(27, 0);
     msleep(sleep_time);
-    _ra_inl(CR_GPIO_DATA) &= ~(1<<1);
+    DO_IIC_SL(1, 0);
     return 0;
 }
 
 static int stop(void)
 {
-    _ra_inl(CR_GPIO_DATA) &= ~(1<<27);
+    DO_IIC_SL(27, 0);
     msleep(sleep_time);
-    _ra_inl(CR_GPIO_DATA) |= 1<<27;
+    DO_IIC_SH(27, 0);
     msleep(sleep_time);
     return 0;
 }
@@ -87,49 +224,40 @@ static int stop(void)
 static unsigned int rc_ack(void)
 {
     unsigned int ack = 0;
-    _ra_inl(CR_GPIO_CTRL) &= ~(1<<27);
-    _ra_inl(CR_GPIO_ODRAIN) &= ~(1<<27);
     msleep(sleep_time);
     msleep(sleep_time);
-
-    _ra_inl(CR_GPIO_DATA) |= 1<<1;
+    DO_IIC_SL(1, 0);
     msleep(sleep_time);
+    //gpio_spin_lock();	
+    IIC_IEN(27);
     msleep(sleep_time);
-
-    ack = (_ra_inl(CR_GPIO_CTRL)&&1<<27);
-    msleep(sleep_time);
-    msleep(sleep_time);
-
-    _ra_inl(CR_GPIO_DATA) &= ~(1<<1);
-    _ra_inl(CR_GPIO_CTRL) |= 1<<27;
-    _ra_inl(CR_GPIO_ODRAIN) |= 1<<27;
-    msleep(sleep_time);
-    msleep(sleep_time);
-
+    ack = LED_GET_GPIO_DATA(27);
+    IIC_OEN(27);
+    //gpio_spin_unlock();
+    DO_IIC_SH(1, 0);
     return ack;
 }
 
 
 static void sd_ack(void)
 {
-    _ra_inl(CR_GPIO_DATA) &= ~(1<<27);
-
-    _ra_inl(CR_GPIO_DATA) |= 1<<1;
+    DO_IIC_SL(27, 0);
+    DO_IIC_SH(1, 0);
     msleep(sleep_time);
     msleep(sleep_time);
 
-    _ra_inl(CR_GPIO_DATA) &= ~(1<<1);
+    DO_IIC_SL(1, 0);
     return;
 }
 
 static void sd_nack(void)
 {
-    _ra_inl(CR_GPIO_DATA) |= 1<<27;
-    _ra_inl(CR_GPIO_DATA) |= 1<<1;
+    DO_IIC_SH(27, 0);
+    DO_IIC_SH(1, 0);
     msleep(sleep_time);
     msleep(sleep_time);
 
-    _ra_inl(CR_GPIO_DATA) &= ~(1<<1);
+    DO_IIC_SL(1, 0);
     return;
 } 
 
@@ -140,63 +268,63 @@ static unsigned int ii2_read(unsigned int inData, unsigned int *outData,int num)
     msleep(sleep_time);
     read_data <<= 1;
     read_data |= (inData>>7)&0x01;
-    _ra_inl(CR_GPIO_DATA) &= ~(1<<1);
+    DO_IIC_SL(1, 0);
     // 6
     msleep(sleep_time);
     msleep(sleep_time);
-    _ra_inl(CR_GPIO_DATA) |= 1<<1;
+    DO_IIC_SH(1, 0);
     msleep(sleep_time);
     read_data <<= 1;
     read_data |= (inData>>6)&0x01;
-    _ra_inl(CR_GPIO_DATA) &= ~(1<<1);
+    DO_IIC_SL(1, 0);
     // 5
     msleep(sleep_time);
     msleep(sleep_time);
-    _ra_inl(CR_GPIO_DATA) |= 1<<1;
+    DO_IIC_SH(1, 0);
     msleep(sleep_time);
     read_data <<= 1;
     read_data |= (inData>>5)&0x01;
-    _ra_inl(CR_GPIO_DATA) &= ~(1<<1);
+    DO_IIC_SL(1, 0);
     // 4
     msleep(sleep_time);
     msleep(sleep_time);
-    _ra_inl(CR_GPIO_DATA) |= 1<<1;
+    DO_IIC_SH(1, 0);
     msleep(sleep_time);
     read_data <<= 1;
     read_data |= (inData>>4)&0x01;
-    _ra_inl(CR_GPIO_DATA) &= ~(1<<1);
+    DO_IIC_SL(1, 0);
     // 3
     msleep(sleep_time);
     msleep(sleep_time);
-    _ra_inl(CR_GPIO_DATA) |= 1<<1;
+    DO_IIC_SH(1, 0);
     msleep(sleep_time);
     read_data <<= 1;
     read_data |= (inData>>3)&0x01;
-    _ra_inl(CR_GPIO_DATA) &= ~(1<<1);
+    DO_IIC_SL(1, 0);
     // 2
     msleep(sleep_time);
     msleep(sleep_time);
-    _ra_inl(CR_GPIO_DATA) |= 1<<1;
+    DO_IIC_SH(1, 0);
     msleep(sleep_time);
     read_data <<= 1;
     read_data |= (inData>>2)&0x01;
-    _ra_inl(CR_GPIO_DATA) &= ~(1<<1);
+    DO_IIC_SL(1, 0);
     // 1
     msleep(sleep_time);
     msleep(sleep_time);
-    _ra_inl(CR_GPIO_DATA) |= 1<<1;
+    DO_IIC_SH(1, 0);
     msleep(sleep_time);
     read_data <<= 1;
     read_data |= (inData>>1)&0x01;
-    _ra_inl(CR_GPIO_DATA) &= ~(1<<1);
+    DO_IIC_SL(1, 0);
     // 0
     msleep(sleep_time);
     msleep(sleep_time);
-    _ra_inl(CR_GPIO_DATA) |= 1<<1;
+    DO_IIC_SH(1, 0);
     msleep(sleep_time);
     read_data <<= 1;
     read_data |= (inData)&0x01;
-    _ra_inl(CR_GPIO_DATA) &= ~(1<<1);
+    DO_IIC_SL(1, 0);
     msleep(sleep_time);
     msleep(sleep_time);
     *outData = read_data;
@@ -217,66 +345,98 @@ static unsigned int write_data(unsigned int indata, int i)
     unsigned int out;
     out = (indata>>i) & 0x01;
     if(out)
-        _ra_inl(CR_GPIO_DATA) |= 1<<27;
+        DO_IIC_SH(27, 0);
     else
-        _ra_inl(CR_GPIO_DATA) &= ~(1<<27);
+        DO_IIC_SL(27, 0);
+    unsigned int ack = LED_GET_GPIO_DATA(27);
+   // printk(KERN_INFO "ack after data is %d\n",(ack>>27));
     msleep(sleep_time);
-    _ra_inl(CR_GPIO_DATA) |= 1<<1;
+    DO_IIC_SH(1, 0);
 }
 
 static unsigned int iic_write(unsigned int indata)
 {
     unsigned data_bit, ackSign;
-    _ra_inl(CR_GPIO_DATA) &= ~(1<<1);
-
     write_data(indata, 7);
 
     msleep(sleep_time);
     msleep(sleep_time);
-    _ra_inl(CR_GPIO_DATA) &= ~(1<<1);
+    DO_IIC_SL(1, 0);
     write_data(indata, 6);
 
     msleep(sleep_time);
     msleep(sleep_time);
-    _ra_inl(CR_GPIO_DATA) &= ~(1<<1);
+    DO_IIC_SL(1, 0);
     write_data(indata, 5);
 
     msleep(sleep_time);
     msleep(sleep_time);
-    _ra_inl(CR_GPIO_DATA) &= ~(1<<1);
+    DO_IIC_SL(1, 0);
     write_data(indata, 4);
 
     msleep(sleep_time);
     msleep(sleep_time);
-    _ra_inl(CR_GPIO_DATA) &= ~(1<<1);
+    DO_IIC_SL(1, 0);
     write_data(indata, 3);
 
     msleep(sleep_time);
     msleep(sleep_time);
-    _ra_inl(CR_GPIO_DATA) &= ~(1<<1);
+    DO_IIC_SL(1, 0);
     write_data(indata, 2);
     
     msleep(sleep_time);
     msleep(sleep_time);
-    _ra_inl(CR_GPIO_DATA) &= ~(1<<1);
+    DO_IIC_SL(1, 0);
     write_data(indata, 1);
 
     msleep(sleep_time);
     msleep(sleep_time);
-    _ra_inl(CR_GPIO_DATA) &= ~(1<<1);
+    DO_IIC_SL(1, 0);
     write_data(indata, 0);
 
     ackSign = rc_ack();
-    printk(KERN_INFO "ack data is %d\n",rc_ack);
+    printk(KERN_INFO "ack data is %d\n",ackSign);
+    printk("\n");
+    msleep(sleep_time);
+    msleep(sleep_time);
     return ackSign;
 }
 
+void light_open(void)
+{
+    msleep(sleep_time);
+    msleep(sleep_time);
+    start();
+    // address
+    iic_write(78);
+    // contral
+    iic_write(3);
+    // data
+    iic_write(239);
+    stop();
+    msleep(sleep_time);   
+}
+
+void light_close(void)
+{
+    msleep(sleep_time);
+    msleep(sleep_time);
+    start();
+    // address
+    iic_write(78);
+    // contral
+    iic_write(3);
+    // data
+    iic_write(255);
+    stop();
+    msleep(sleep_time);   
+}
 
 void mytimer_task(struct timer_list  *timer)
 {
-    mod_timer(&mytimer, jiffies + 100);
+    mod_timer(&mytimer,jiffies + msecs_to_jiffies(100));
     wake_up(&wait_queue);
-    value = _ra_inl(CR_GPIO_DATA)&(1<<26);
+    value = LED_GET_GPIO_DATA(26);
 }
 
 static int open(struct inode *inode, struct file *filp)
@@ -301,44 +461,24 @@ ssize_t write(struct file *filp, const char __user *buff, size_t count, loff_t *
     return count;
 }
 
+#define lightOpen      _IOWR('k', 0, int)
+#define lightClose     _IOWR('k', 1, int)
+#define lightShansuo    _IOWR('k', 3, int)
+
 long int ioctl(struct file *node, unsigned int cmd, unsigned long data)
 {
     long err;
-    struct msg my_msg;
     unsigned int max = 0;
     unsigned int indata = 1008611;
 
-    if(_IOC_TYPE(cmd) != magic_id)
-    { 
-	return -ENOTTY;
-    }
- 
-    if(_IOC_NR(cmd) > device_max)
-    {
-	return -ENOTTY;
-    }
-
-    if(_IOC_DIR(cmd)&_IOC_WRITE)
-    {
-        err = !access_ok((void __user *)data, _IOC_SIZE(cmd));
-    }
-    else if(_IOC_DIR(cmd)&_IOC_READ)
-    {
-        err = !access_ok((void __user *)data, _IOC_SIZE(cmd));
-    }
-    if(err)
-	    return -EFAULT;
     unsigned int ret = 0;
-
+    int i = 0;
     void *args = (void *)data;
     unsigned int *p = args; 
-    err = copy_from_user(&my_msg, (struct msg __user *)data, sizeof(struct msg));
     
-    if(err)
-	    return -EFAULT;
     switch(cmd)
     {
-       case light_open:
+       case lightOpen:
             // 点灯
             msleep(sleep_time);
             msleep(sleep_time);
@@ -346,14 +486,14 @@ long int ioctl(struct file *node, unsigned int cmd, unsigned long data)
             // address
             iic_write(78);
             // contral
-            iic_write(2);
+            iic_write(3);
             // data
             iic_write(239);
             stop();
             msleep(sleep_time);
             break;
 	    
-       case light_close:
+       case lightClose:
             // 灭灯
             msleep(sleep_time);
             msleep(sleep_time);
@@ -361,11 +501,20 @@ long int ioctl(struct file *node, unsigned int cmd, unsigned long data)
             // address
             iic_write(78);
             // contral
-            iic_write(2);
+            iic_write(3);
             // data
             iic_write(255);
             stop();
             msleep(sleep_time);
+            break;
+        
+        case lightShansuo:
+            for(i; i < *p; i++)
+            {
+                light_open();
+                msleep(100);
+                light_close();
+            }
             break;
 
        default:
@@ -406,7 +555,12 @@ void dev_set(void)
         printk(KERN_NOTICE "class_create error\n");
         return;
     }
-    device_create(myClass, NULL, devno, NULL, "io_node");
+    struct device *devices;
+    devices = device_create(myClass, NULL, devno, NULL, "io_node");
+    if(devices == NULL)
+    {
+        printk(KERN_NOTICE "device_create error\n");
+    }
     return;
 }
 
@@ -430,11 +584,21 @@ void key_init(void)
     // address
     iic_write(78);
     // contral
-    iic_write(2);
+    iic_write(6);
     // data
     iic_write(1);
     stop();
+
     msleep(sleep_time);
+    msleep(sleep_time);
+    start();
+    // address
+    iic_write(78);
+    // contral
+    iic_write(7);
+    // data
+    iic_write(13);
+    stop();
 }
 
 static int __init io_init(void)
@@ -447,22 +611,48 @@ static int __init io_init(void)
         printk(KERN_ERR "register_chrdev_region error\n");
         return -1;
     }
-    mutex_init(&mymutex);
+    timer_setup(&mytimer, mytimer_task, 0);
     gpio_init();
     printk(KERN_NOTICE "init\n");
+
     dev_set();
     cdev_create();
     key_init();
+    
+    msleep(sleep_time);
+    msleep(sleep_time);
+    start();
+    // address
+    iic_write(78);
+    // contral
+    iic_write(3);
+    // data
+    iic_write(251);
+    stop();
+    msleep(sleep_time);
+
     return 0;
 }
 
 static void __exit io_exit(void)
 {
+    msleep(sleep_time);
+    msleep(sleep_time);
+    start();
+    // address
+    iic_write(78);
+    // contral
+    iic_write(3);
+    // data
+    iic_write(255);
+    stop();
+    msleep(sleep_time);
+    
     printk(KERN_NOTICE "exit\n");
     cdev_del(&cdev);
     device_destroy(myClass, devno);
     class_destroy(myClass);
-    //del_timer(&mytimer);
+    del_timer(&mytimer);
     unregister_chrdev_region(devno, numDevice);
 }
 
