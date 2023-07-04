@@ -69,81 +69,21 @@ unsigned int flag1 = 0;
 #define REG_SETBITS(reg, bitsmask, bits) (regWrite32(reg, (regRead32(reg) & ~(bitsmask)) | (bits)))
 #define REG_CLRBITS(reg, bits) (regWrite32(reg, regRead32(reg) & ~(bits)))
 
-#define DO_IIC_SH(x, b) do {	gpio_spin_lock(); 					\
-								if (b) {						\
-									if(LED_GPIO_MODE(x)){	\
-										unsigned int value1 = regRead32(CR_GPIO_DATA);	\
-										unsigned int value2 = regRead32(CR_GPIO_DATA1);	\
-										unsigned int flag = 0;	\
-										if(LED_GPIO1_NEW(x) > 31){\
-											value2 |= (1<<(LED_GPIO1_NEW(x)-32));	\
-										}else{	\
-											value1 |= (1<<(LED_GPIO1_NEW(x)));	\
-										}	\
-										if(LED_GPIO2_NEW(x) > 31){\
-											value2 |= (1<<(LED_GPIO2_NEW(x)-32));	\
-											flag = 1;\
-										}else{	\
-											value1 |= (1<<(LED_GPIO2_NEW(x)));	\
-										}	\
-										if(flag){	\
-											regWrite32(CR_GPIO_DATA1,value2);				\
-											regWrite32(CR_GPIO_DATA,value1);				\
-										}else{	\
-											regWrite32(CR_GPIO_DATA,value1);				\
-											regWrite32(CR_GPIO_DATA1,value2);				\
-										}	\
-									}else{	\
-										regWrite32(CR_GPIO_DATA,regRead32(CR_GPIO_DATA)|(1<<(LED_GPIO1(x))));	\
-										regWrite32(CR_GPIO_DATA,regRead32(CR_GPIO_DATA)|(1<<(LED_GPIO2(x))));	\
-									}	\
-								} else {						\
+#define DO_IIC_SH(x) do {	gpio_spin_lock(); 					\
 									if(x > 31){					\
 										regWrite32(CR_GPIO_DATA1,regRead32(CR_GPIO_DATA1)|(1<<(x-32)));	\
 									}else{						\
 										regWrite32(CR_GPIO_DATA,regRead32(CR_GPIO_DATA)|(1<<x));	\
 									}						\
-								}													\
 							gpio_spin_unlock(); \
 						} while (0)
 
-#define DO_IIC_SL(x, b) do {	gpio_spin_lock();							\
-							\
-								if (b) {						\
-									if(LED_GPIO_MODE(x)){	\
-										unsigned int value1 = regRead32(CR_GPIO_DATA);	\
-										unsigned int value2 = regRead32(CR_GPIO_DATA1);	\
-										int flag = 0;\
-										if(LED_GPIO1_NEW(x) > 31){\
-											value2 &= ~ (1<<(LED_GPIO1_NEW(x)-32));	\
-										}else{	\
-											value1 &= ~ (1<<(LED_GPIO1_NEW(x)));	\
-										}	\
-										if(LED_GPIO2_NEW(x) > 31){\
-											value2 |= (1<<(LED_GPIO2_NEW(x)-32));	\
-											flag = 1;\
-										}else{	\
-											value1 |= (1<<(LED_GPIO2_NEW(x)));	\
-										}	\
-										if(flag){	\
-											regWrite32(CR_GPIO_DATA1,value2);				\
-											regWrite32(CR_GPIO_DATA,value1);				\		
-										}else{\
-											regWrite32(CR_GPIO_DATA,value1);				\
-											regWrite32(CR_GPIO_DATA1,value2);				\	
-										}\				
-									}else{						\	
-										regWrite32(CR_GPIO_DATA,regRead32(CR_GPIO_DATA)& ~(1<<(LED_GPIO1(x))));	\
-										regWrite32(CR_GPIO_DATA,regRead32(CR_GPIO_DATA)|(1<<(LED_GPIO2(x))));	\
-									}	\
-								} else {						\
+#define DO_IIC_SL(x) do {	gpio_spin_lock();							\
 									if(x > 31){					\
 										regWrite32(CR_GPIO_DATA1,regRead32(CR_GPIO_DATA1)& ~(1<<(x-32)));	\
 									}else{						\
 										regWrite32(CR_GPIO_DATA,regRead32(CR_GPIO_DATA)& ~(1<<x));	\
 									}						\
-								} 							\
-														\
 							gpio_spin_unlock(); \
 						} while (0)
 
@@ -193,12 +133,8 @@ static int gpio_init(void)
     IIC_OEN(1);
     IIC_OEN(27);
     // 写入数据
-    DO_IIC_SH(27, 0);
-    unsigned int ack = LED_GET_GPIO_DATA(1);
-    printk(KERN_INFO "the pre data is %d\n",(ack>>1));
-    DO_IIC_SH(1, 0);
-    ack = LED_GET_GPIO_DATA(1);
-    printk(KERN_INFO "the aft data is %d\n",(ack>>1));
+    DO_IIC_SH(27);
+    DO_IIC_SH(1);
     IIC_IEN(26);
     return 0;
 }
@@ -206,17 +142,20 @@ static int gpio_init(void)
 static int start(void)
 {
     msleep(sleep_time);
-    DO_IIC_SL(27, 0);
+    DO_IIC_SL(27);
     msleep(sleep_time);
-    DO_IIC_SL(1, 0);
+    DO_IIC_SL(1);
     return 0;
 }
 
 static int stop(void)
 {
-    DO_IIC_SL(27, 0);
     msleep(sleep_time);
-    DO_IIC_SH(27, 0);
+    DO_IIC_SL(27);
+    msleep(sleep_time);
+    DO_IIC_SH(1);
+    msleep(sleep_time);
+    DO_IIC_SH(27);
     msleep(sleep_time);
     return 0;
 }
@@ -226,116 +165,83 @@ static unsigned int rc_ack(void)
     unsigned int ack = 0;
     msleep(sleep_time);
     msleep(sleep_time);
-    DO_IIC_SL(1, 0);
+    DO_IIC_SL(1);
     msleep(sleep_time);
-    //gpio_spin_lock();	
     IIC_IEN(27);
     msleep(sleep_time);
     ack = LED_GET_GPIO_DATA(27);
     IIC_OEN(27);
-    //gpio_spin_unlock();
-    DO_IIC_SH(1, 0);
+    DO_IIC_SH(1);
     return ack;
 }
 
 
 static void sd_ack(void)
 {
-    DO_IIC_SL(27, 0);
-    DO_IIC_SH(1, 0);
+    DO_IIC_SL(27);
+    msleep(sleep_time);
+    DO_IIC_SH(1);
     msleep(sleep_time);
     msleep(sleep_time);
 
-    DO_IIC_SL(1, 0);
+    DO_IIC_SL(1);
     return;
 }
 
 static void sd_nack(void)
 {
-    DO_IIC_SH(27, 0);
-    DO_IIC_SH(1, 0);
+    DO_IIC_SH(27);
+    msleep(sleep_time);
+    DO_IIC_SH(1);
     msleep(sleep_time);
     msleep(sleep_time);
 
-    DO_IIC_SL(1, 0);
+    DO_IIC_SL(1);
     return;
 } 
 
-static unsigned int ii2_read(unsigned int inData, unsigned int *outData,int num)
+static unsigned int ii2_read(unsigned int *outData,int num)
 {
     // 7
     unsigned int read_data = 0;
+    unsigned int temp = 0;
     msleep(sleep_time);
-    read_data <<= 1;
-    read_data |= (inData>>7)&0x01;
-    DO_IIC_SL(1, 0);
-    // 6
+    IIC_IEN(27);
     msleep(sleep_time);
-    msleep(sleep_time);
-    DO_IIC_SH(1, 0);
-    msleep(sleep_time);
-    read_data <<= 1;
-    read_data |= (inData>>6)&0x01;
-    DO_IIC_SL(1, 0);
-    // 5
-    msleep(sleep_time);
-    msleep(sleep_time);
-    DO_IIC_SH(1, 0);
-    msleep(sleep_time);
-    read_data <<= 1;
-    read_data |= (inData>>5)&0x01;
-    DO_IIC_SL(1, 0);
-    // 4
-    msleep(sleep_time);
-    msleep(sleep_time);
-    DO_IIC_SH(1, 0);
-    msleep(sleep_time);
-    read_data <<= 1;
-    read_data |= (inData>>4)&0x01;
-    DO_IIC_SL(1, 0);
-    // 3
-    msleep(sleep_time);
-    msleep(sleep_time);
-    DO_IIC_SH(1, 0);
-    msleep(sleep_time);
-    read_data <<= 1;
-    read_data |= (inData>>3)&0x01;
-    DO_IIC_SL(1, 0);
-    // 2
-    msleep(sleep_time);
-    msleep(sleep_time);
-    DO_IIC_SH(1, 0);
-    msleep(sleep_time);
-    read_data <<= 1;
-    read_data |= (inData>>2)&0x01;
-    DO_IIC_SL(1, 0);
-    // 1
-    msleep(sleep_time);
-    msleep(sleep_time);
-    DO_IIC_SH(1, 0);
-    msleep(sleep_time);
-    read_data <<= 1;
-    read_data |= (inData>>1)&0x01;
-    DO_IIC_SL(1, 0);
-    // 0
-    msleep(sleep_time);
-    msleep(sleep_time);
-    DO_IIC_SH(1, 0);
-    msleep(sleep_time);
-    read_data <<= 1;
-    read_data |= (inData)&0x01;
-    DO_IIC_SL(1, 0);
-    msleep(sleep_time);
-    msleep(sleep_time);
-    *outData = read_data;
-    if(num >= 8)
-        sd_nack();
-    else
-        sd_ack();
-    
+    DO_IIC_SH(1);
+    temp = LED_GET_GPIO_DATA(27)>>27;
+    printk(KERN_INFO "temp = %d\n", temp);
+    read_data = (temp&0x01)<<7;
     msleep(sleep_time);
     msleep(sleep_time);
 
+    int i = 6;
+    for(i;i>=0;i--)
+    {
+        DO_IIC_SL(1);
+        msleep(sleep_time);
+        msleep(sleep_time);
+        temp = LED_GET_GPIO_DATA(27)>>27;
+        printk(KERN_INFO "temp = %d\n", temp);
+        read_data = ((temp&0x01)<<i)|read_data;
+        DO_IIC_SH(1);
+        msleep(sleep_time);
+        msleep(sleep_time);
+    }
+    DO_IIC_SL(1);
+    msleep(sleep_time);
+    *outData = read_data;
+    printk(KERN_INFO "read_data = %d\n", read_data);
+    if(read_data)
+    {
+        sd_nack();
+        printk(KERN_INFO "no ack\n");
+    }
+    else
+    {
+        sd_ack();
+        printk(KERN_INFO "ack\n");
+    }
     return 0;
 }
 
@@ -344,19 +250,17 @@ static unsigned int write_data(unsigned int indata, int i)
     msleep(sleep_time);
     unsigned int out;
     out = (indata>>i) & 0x01;
-    printk(KERN_INFO "out = %d\n", out);
+    // printk(KERN_INFO "out = %d\n", out);
     if(out)
     {
-        DO_IIC_SH(27, 0);
+        DO_IIC_SH(27);
     }
     else
     {
-        DO_IIC_SL(27, 0);
+        DO_IIC_SL(27);
     }
-    unsigned int ack = LED_GET_GPIO_DATA(27);
-   // printk(KERN_INFO "ack after data is %d\n",(ack>>27));
     msleep(sleep_time);
-    DO_IIC_SH(1, 0);
+    DO_IIC_SH(1);
 }
 
 static unsigned int iic_write(unsigned int indata)
@@ -364,52 +268,18 @@ static unsigned int iic_write(unsigned int indata)
     unsigned data_bit, ackSign;
     write_data(indata, 7);
     int i = 6;
-    for(i; i>=0 ;i++)
+
+    for(i; i>=0 ;i--)
     {
         msleep(sleep_time);
         msleep(sleep_time);
-        DO_IIC_SL(1, 0);
+        DO_IIC_SL(1);
         write_data(indata, i);
     }
-    // msleep(sleep_time);
-    // msleep(sleep_time);
-    // DO_IIC_SL(1, 0);
-    // write_data(indata, 6);
-
-    // msleep(sleep_time);
-    // msleep(sleep_time);
-    // DO_IIC_SL(1, 0);
-    // write_data(indata, 5);
-
-    // msleep(sleep_time);
-    // msleep(sleep_time);
-    // DO_IIC_SL(1, 0);
-    // write_data(indata, 4);
-
-    // msleep(sleep_time);
-    // msleep(sleep_time);
-    // DO_IIC_SL(1, 0);
-    // write_data(indata, 3);
-
-    // msleep(sleep_time);
-    // msleep(sleep_time);
-    // DO_IIC_SL(1, 0);
-    // write_data(indata, 2);
-    
-    // msleep(sleep_time);
-    // msleep(sleep_time);
-    // DO_IIC_SL(1, 0);
-    // write_data(indata, 1);
-
-    // msleep(sleep_time);
-    // msleep(sleep_time);
-    // DO_IIC_SL(1, 0);
-    // write_data(indata, 0);
-
     ackSign = rc_ack();
     msleep(sleep_time);
     msleep(sleep_time);
-    DO_IIC_SL(1, 0);
+    DO_IIC_SL(1);
     printk(KERN_INFO "ack data is %d\n",ackSign>>26);
     printk("\n");
     return ackSign;
@@ -493,16 +363,16 @@ long int ioctl(struct file *node, unsigned int cmd, unsigned long data)
     {
        case lightOpen:
             // 点灯
-            msleep(sleep_time);
-            msleep(sleep_time);
             start();
-            // address
+            // address 0100 1110
             iic_write(78);
-            // contral
-            iic_write(3);
-            // data
-            iic_write(239);
+            // contral 0000 0111
+            iic_write(7);
+            // data    0000 1101
+            iic_write(13);
             stop();
+
+            msleep(sleep_time);
             msleep(sleep_time);
             break;
 	    
@@ -511,11 +381,11 @@ long int ioctl(struct file *node, unsigned int cmd, unsigned long data)
             msleep(sleep_time);
             msleep(sleep_time);
             start();
-            // address
+            // address  0100 1110
             iic_write(78);
-            // contral
+            // contral  0000 0011
             iic_write(3);
-            // data
+            // data     1111 1111
             iic_write(255);
             stop();
             msleep(sleep_time);
@@ -591,6 +461,7 @@ void cdev_create(void)
 
 void led_init(void)
 {
+    unsigned int r_data = 0;
     start();
     // address 0100 1110
     iic_write(78);
@@ -637,18 +508,6 @@ static int __init io_init(void)
 
 static void __exit io_exit(void)
 {   
-    msleep(sleep_time);
-    msleep(sleep_time);
-    start();
-    // address  0100 1110
-    iic_write(78);
-    // contral  0000 0011
-    iic_write(3);
-    // data     1111 1111
-    iic_write(255);
-    stop();
-    msleep(sleep_time);
-
     printk(KERN_NOTICE "exit\n");
     cdev_del(&cdev);
     device_destroy(myClass, devno);
@@ -660,4 +519,3 @@ static void __exit io_exit(void)
 MODULE_LICENSE("GPL");
 module_init(io_init);
 module_exit(io_exit);
-
