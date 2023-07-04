@@ -31,6 +31,10 @@ static DEFINE_MUTEX(mymutex);
 #define WLAN_IIC_OEN  2
 #define WLAN_IIC_IEN  3
 
+#define address_pca9535 78
+#define register7 7  
+#define register3 3  
+
 #define magic_id 'k'
 
 static inline unsigned int regRead32(unsigned long reg)		\
@@ -280,24 +284,24 @@ static unsigned int iic_write(unsigned int indata)
     msleep(sleep_time);
     msleep(sleep_time);
     DO_IIC_SL(1);
-    printk(KERN_INFO "ack data is %d\n",ackSign>>26);
-    printk("\n");
+    // printk(KERN_INFO "ack data is %d\n",ackSign>>26);
+    // printk("\n");
     return ackSign;
 }
 
 void light_open(void)
 {
-    msleep(sleep_time);
-    msleep(sleep_time);
     start();
-    // address
-    iic_write(78);
-    // contral
-    iic_write(3);
-    // data
-    iic_write(239);
+    // address 0100 1110
+    iic_write(address_pca9535);
+    // contral 0000 0111
+    iic_write(7);
+    // data    0000 1101
+    iic_write(13);
     stop();
-    msleep(sleep_time);   
+
+    msleep(sleep_time);
+    msleep(sleep_time);  
 }
 
 void light_close(void)
@@ -305,14 +309,14 @@ void light_close(void)
     msleep(sleep_time);
     msleep(sleep_time);
     start();
-    // address
-    iic_write(78);
-    // contral
+    // address  0100 1110
+    iic_write(address_pca9535);
+    // contral  0000 0011
     iic_write(3);
-    // data
+    // data     1111 1111
     iic_write(255);
     stop();
-    msleep(sleep_time);   
+    msleep(sleep_time);  
 }
 
 void mytimer_task(struct timer_list  *timer)
@@ -365,7 +369,7 @@ long int ioctl(struct file *node, unsigned int cmd, unsigned long data)
             // 点灯
             start();
             // address 0100 1110
-            iic_write(78);
+            iic_write(address_pca9535);
             // contral 0000 0111
             iic_write(7);
             // data    0000 1101
@@ -382,7 +386,7 @@ long int ioctl(struct file *node, unsigned int cmd, unsigned long data)
             msleep(sleep_time);
             start();
             // address  0100 1110
-            iic_write(78);
+            iic_write(address_pca9535);
             // contral  0000 0011
             iic_write(3);
             // data     1111 1111
@@ -459,32 +463,6 @@ void cdev_create(void)
     }
 }
 
-void led_init(void)
-{
-    unsigned int r_data = 0;
-    start();
-    // address 0100 1110
-    iic_write(78);
-    // contral 0000 0111
-    iic_write(7);
-    // data    0000 1101
-    iic_write(13);
-    stop();
-
-    msleep(sleep_time);
-    msleep(sleep_time);
-
-    start();
-    // address 0100 1110
-    iic_write(78);
-    // contral 0000 0011
-    iic_write(3);
-    // data    1111 1101
-    iic_write(253);
-    stop();
-    msleep(sleep_time);
-}
-
 static int __init io_init(void)
 {
     devno = MKDEV(io_major, io_minor);
@@ -501,7 +479,6 @@ static int __init io_init(void)
 
     dev_set();
     cdev_create();
-    led_init();
 
     return 0;
 }
