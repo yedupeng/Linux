@@ -25,7 +25,7 @@ static DEFINE_MUTEX(mymutex);
 #define BUF_LEN 64
 #define _ra_inl(addr) (*(volatile unsigned int *)(addr))
 #define NEXT_POS(x) ((x+1)%BUF_LEN)
-#define sleep_time 5
+#define sleep_time 1
 #define WLAN_LED_ON  1
 #define WLAN_LED_OFF 0
 #define WLAN_IIC_OEN  2
@@ -344,10 +344,15 @@ static unsigned int write_data(unsigned int indata, int i)
     msleep(sleep_time);
     unsigned int out;
     out = (indata>>i) & 0x01;
+    printk(KERN_INFO "out = %d\n", out);
     if(out)
+    {
         DO_IIC_SH(27, 0);
+    }
     else
+    {
         DO_IIC_SL(27, 0);
+    }
     unsigned int ack = LED_GET_GPIO_DATA(27);
    // printk(KERN_INFO "ack after data is %d\n",(ack>>27));
     msleep(sleep_time);
@@ -358,47 +363,55 @@ static unsigned int iic_write(unsigned int indata)
 {
     unsigned data_bit, ackSign;
     write_data(indata, 7);
+    int i = 6;
+    for(i; i>=0 ;i++)
+    {
+        msleep(sleep_time);
+        msleep(sleep_time);
+        DO_IIC_SL(1, 0);
+        write_data(indata, i);
+    }
+    // msleep(sleep_time);
+    // msleep(sleep_time);
+    // DO_IIC_SL(1, 0);
+    // write_data(indata, 6);
 
-    msleep(sleep_time);
-    msleep(sleep_time);
-    DO_IIC_SL(1, 0);
-    write_data(indata, 6);
+    // msleep(sleep_time);
+    // msleep(sleep_time);
+    // DO_IIC_SL(1, 0);
+    // write_data(indata, 5);
 
-    msleep(sleep_time);
-    msleep(sleep_time);
-    DO_IIC_SL(1, 0);
-    write_data(indata, 5);
+    // msleep(sleep_time);
+    // msleep(sleep_time);
+    // DO_IIC_SL(1, 0);
+    // write_data(indata, 4);
 
-    msleep(sleep_time);
-    msleep(sleep_time);
-    DO_IIC_SL(1, 0);
-    write_data(indata, 4);
+    // msleep(sleep_time);
+    // msleep(sleep_time);
+    // DO_IIC_SL(1, 0);
+    // write_data(indata, 3);
 
-    msleep(sleep_time);
-    msleep(sleep_time);
-    DO_IIC_SL(1, 0);
-    write_data(indata, 3);
-
-    msleep(sleep_time);
-    msleep(sleep_time);
-    DO_IIC_SL(1, 0);
-    write_data(indata, 2);
+    // msleep(sleep_time);
+    // msleep(sleep_time);
+    // DO_IIC_SL(1, 0);
+    // write_data(indata, 2);
     
-    msleep(sleep_time);
-    msleep(sleep_time);
-    DO_IIC_SL(1, 0);
-    write_data(indata, 1);
+    // msleep(sleep_time);
+    // msleep(sleep_time);
+    // DO_IIC_SL(1, 0);
+    // write_data(indata, 1);
 
-    msleep(sleep_time);
-    msleep(sleep_time);
-    DO_IIC_SL(1, 0);
-    write_data(indata, 0);
+    // msleep(sleep_time);
+    // msleep(sleep_time);
+    // DO_IIC_SL(1, 0);
+    // write_data(indata, 0);
 
     ackSign = rc_ack();
-    printk(KERN_INFO "ack data is %d\n",ackSign);
+    msleep(sleep_time);
+    msleep(sleep_time);
+    DO_IIC_SL(1, 0);
+    printk(KERN_INFO "ack data is %d\n",ackSign>>26);
     printk("\n");
-    msleep(sleep_time);
-    msleep(sleep_time);
     return ackSign;
 }
 
@@ -576,29 +589,29 @@ void cdev_create(void)
     }
 }
 
-void key_init(void)
+void led_init(void)
 {
-    msleep(sleep_time);
-    msleep(sleep_time);
     start();
-    // address
+    // address 0100 1110
     iic_write(78);
-    // contral
-    iic_write(6);
-    // data
-    iic_write(1);
+    // contral 0000 0111
+    iic_write(7);
+    // data    0000 1101
+    iic_write(13);
     stop();
 
     msleep(sleep_time);
     msleep(sleep_time);
+
     start();
-    // address
+    // address 0100 1110
     iic_write(78);
-    // contral
-    iic_write(7);
-    // data
-    iic_write(13);
+    // contral 0000 0011
+    iic_write(3);
+    // data    1111 1101
+    iic_write(253);
     stop();
+    msleep(sleep_time);
 }
 
 static int __init io_init(void)
@@ -617,37 +630,25 @@ static int __init io_init(void)
 
     dev_set();
     cdev_create();
-    key_init();
-    
-    msleep(sleep_time);
-    msleep(sleep_time);
-    start();
-    // address
-    iic_write(78);
-    // contral
-    iic_write(3);
-    // data
-    iic_write(251);
-    stop();
-    msleep(sleep_time);
+    led_init();
 
     return 0;
 }
 
 static void __exit io_exit(void)
-{
+{   
     msleep(sleep_time);
     msleep(sleep_time);
     start();
-    // address
+    // address  0100 1110
     iic_write(78);
-    // contral
+    // contral  0000 0011
     iic_write(3);
-    // data
+    // data     1111 1111
     iic_write(255);
     stop();
     msleep(sleep_time);
-    
+
     printk(KERN_NOTICE "exit\n");
     cdev_del(&cdev);
     device_destroy(myClass, devno);
@@ -659,3 +660,4 @@ static void __exit io_exit(void)
 MODULE_LICENSE("GPL");
 module_init(io_init);
 module_exit(io_exit);
+
