@@ -210,15 +210,12 @@
 #define printf	printk
 //#define HW_LEN 32
 #define HW_LEN 64
-#define sleep_time 10
 
 #define LAN_LED_OFF 0
 #define LAN_LED_ON 1
 #define LAN_LED_RECOVER 2
 
-
-/***************************** PCA9535 register *****************************/
-// address
+#define sleep_time 10
 #define write_address 0x4E
 #define read_address 0x4F
 
@@ -245,6 +242,20 @@
 #define VPN_LED 9
 #define WEB_MASTER_LED 10
 
+static struct timer_list mytimer;
+
+
+#define close_light 0xFF
+#define enable_led1 0xF8
+#define enable_led0 0x21
+
+#define LED_MODE_IIC				6
+
+static void delay(unsigned int time_num)
+{
+    while(time_num--);
+}
+
 #ifdef TCSUPPORT_CPU_ARMV8
 static inline uint32 regRead32(unsigned long reg)		\
 {						  	\
@@ -261,11 +272,6 @@ static inline void regWrite32(unsigned long reg, uint32 vlaue)	\
 %%      constant definition
 %%________________________________________________________________________*/
 //#define USE_LED_TASK			1
-
-static void delay(unsigned int time_num)
-{
-    while(time_num--);
-}
 
 #define GPIO_MAX_NO				256
 #define GPIO_OUTPUT_MAX_NO		(81)
@@ -345,12 +351,8 @@ extern void (*Simcard_Led_hook)(unsigned int type ,unsigned int status);
 #define WLAN_LED_STATUS_OFF 2
 #define WLAN_LED_STATUS_RECOVER 3
 
-#define close_light 0xFF
-#define enable_led1 0xF8
-#define enable_led0 0x23
 
 static struct timer_list button_detect_timer;
-static struct timer_list mytimer;
 static unsigned long lastWlanJiffies = 0;
 static unsigned long lastWpsJiffies = 0;
 #ifdef TCSUPPORT_WLAN
@@ -364,7 +366,6 @@ static int wlanDelay = 0;
 static int wpsDelay = 0;
 extern int wlanledsta;
 
-#define LED_MODE_IIC				6
 
 struct button_event
 {
@@ -844,57 +845,6 @@ extern void gpio_spin_unlock(void);
 #endif
 #endif
 
-#if 0// defined(TCSUPPORT_CT) && !defined(TCSUPPORT_AUTOBENCH)
-#define LED_OEN(x)		do { 	if(!(led_wifi(WLAN_LED_OEN, x, 0))){	\
-						(x > 15) ? (VPint(CR_GPIO_CTRL1) |= (1<<(x-16)*2)) : \
-							(VPint(CR_GPIO_CTRL) |= (1<<((x)*2))); VPint(CR_GPIO_ODRAIN) |= (1<<(x));\
-					}\
-				} while(0)
-/* input enable */
-#define LED_IEN(x)		do { 	if(!(led_wifi(WLAN_LED_IEN, x, 0))){	\
-						(x > 15) ? (VPint(CR_GPIO_CTRL1) &= ~(0x00000003 << ((x-16)* 2)) ): \
-							(VPint(CR_GPIO_CTRL) &= ~(0x00000003 << ((x)* 2))); VPint(CR_GPIO_ODRAIN) &= ~(0x00000001 << (x)); \
-					}\
-				} while(0)
-#else
-#define LED_OEN(x)		do { 	if(!(led_wifi(WLAN_LED_OEN, x, 0))){	\
-									if(x > 31){							\
-										if(x > 47){						\
-											REG_SETBITS(CR_GPIO_CTRL3, 0x3<<((x-48)*2), 1<<((x-48)*2)); \
-										}else{							\
-											REG_SETBITS(CR_GPIO_CTRL2, 0x3<<((x-32)*2), 1<<((x-32)*2)); \
-										}								\
-										REG_SETBITS(CR_GPIO_ODRAIN1, 0x1<<(x-32), 1<<(x-32)); \
-									}									\
-									else{								\
-										if(x > 15){						\
-											REG_SETBITS(CR_GPIO_CTRL1,0x3<<((x-16)*2), 1<<((x-16)*2)); \
-										}else{							\
-											REG_SETBITS(CR_GPIO_CTRL,0x3<<((x)*2), 1<<((x)*2)); \
-										}								\
-										REG_SETBITS(CR_GPIO_ODRAIN, 0x1<<(x), 1<<(x)); \
-									}									\
-								}\
-				} while(0)
-/* input enable */
-#define LED_IEN(x)		do { 	if(!(led_wifi(WLAN_LED_IEN, x, 0))){	\
-									if(x > 31){							\
-										if(x > 47)						\
-											REG_CLRBITS(CR_GPIO_CTRL3, (0x00000003 << ((x-48)* 2)));	\
-										else							\
-											REG_CLRBITS(CR_GPIO_CTRL2, (0x00000003 << ((x-32)* 2))); \
-										REG_CLRBITS(CR_GPIO_ODRAIN1, (0x00000001 << (x-32))); \
-									}									\
-									else{								\
-										if(x > 15)						\
-											REG_CLRBITS(CR_GPIO_CTRL1,(0x00000003 << ((x-16)* 2)));	\
-										else							\
-											REG_CLRBITS(CR_GPIO_CTRL,(0x00000003 << (x* 2)));	\
-										REG_CLRBITS(CR_GPIO_ODRAIN,(0x00000001 << (x))); \
-									}									\
-								}\
-				} while(0)
-
 #define DO_IIC_SH(x) do {	gpio_spin_lock(); 					\
 									if(x > 31){					\
 										regWrite32(CR_GPIO_DATA1,regRead32(CR_GPIO_DATA1)|(1<<(x-32)));	\
@@ -950,6 +900,58 @@ extern void gpio_spin_unlock(void);
 									}									\
 								\
 				} while(0)
+
+#if 0// defined(TCSUPPORT_CT) && !defined(TCSUPPORT_AUTOBENCH)
+#define LED_OEN(x)		do { 	if(!(led_wifi(WLAN_LED_OEN, x, 0))){	\
+						(x > 15) ? (VPint(CR_GPIO_CTRL1) |= (1<<(x-16)*2)) : \
+							(VPint(CR_GPIO_CTRL) |= (1<<((x)*2))); VPint(CR_GPIO_ODRAIN) |= (1<<(x));\
+					}\
+				} while(0)
+/* input enable */
+#define LED_IEN(x)		do { 	if(!(led_wifi(WLAN_LED_IEN, x, 0))){	\
+						(x > 15) ? (VPint(CR_GPIO_CTRL1) &= ~(0x00000003 << ((x-16)* 2)) ): \
+							(VPint(CR_GPIO_CTRL) &= ~(0x00000003 << ((x)* 2))); VPint(CR_GPIO_ODRAIN) &= ~(0x00000001 << (x)); \
+					}\
+				} while(0)
+#else
+#define LED_OEN(x)		do { 	if(!(led_wifi(WLAN_LED_OEN, x, 0))){	\
+									if(x > 31){							\
+										if(x > 47){						\
+											REG_SETBITS(CR_GPIO_CTRL3, 0x3<<((x-48)*2), 1<<((x-48)*2)); \
+										}else{							\
+											REG_SETBITS(CR_GPIO_CTRL2, 0x3<<((x-32)*2), 1<<((x-32)*2)); \
+										}								\
+										REG_SETBITS(CR_GPIO_ODRAIN1, 0x1<<(x-32), 1<<(x-32)); \
+									}									\
+									else{								\
+										if(x > 15){						\
+											REG_SETBITS(CR_GPIO_CTRL1,0x3<<((x-16)*2), 1<<((x-16)*2)); \
+										}else{							\
+											REG_SETBITS(CR_GPIO_CTRL,0x3<<((x)*2), 1<<((x)*2)); \
+										}								\
+										REG_SETBITS(CR_GPIO_ODRAIN, 0x1<<(x), 1<<(x)); \
+									}									\
+								}\
+				} while(0)
+/* input enable */
+#define LED_IEN(x)		do { 	if(!(led_wifi(WLAN_LED_IEN, x, 0))){	\
+									if(x > 31){							\
+										if(x > 47)						\
+											REG_CLRBITS(CR_GPIO_CTRL3, (0x00000003 << ((x-48)* 2)));	\
+										else							\
+											REG_CLRBITS(CR_GPIO_CTRL2, (0x00000003 << ((x-32)* 2))); \
+										REG_CLRBITS(CR_GPIO_ODRAIN1, (0x00000001 << (x-32))); \
+									}									\
+									else{								\
+										if(x > 15)						\
+											REG_CLRBITS(CR_GPIO_CTRL1,(0x00000003 << ((x-16)* 2)));	\
+										else							\
+											REG_CLRBITS(CR_GPIO_CTRL,(0x00000003 << (x* 2)));	\
+										REG_CLRBITS(CR_GPIO_ODRAIN,(0x00000001 << (x))); \
+									}									\
+								}\
+				} while(0)
+
 #endif
 // debug macro
 #if 1
@@ -1077,9 +1079,9 @@ static ledctrl_t ledDefCtrl[LED_MAX_NO] = {
 {0,       0,       0,       0},//32
 {0,       0,       0,       0},//33
 {0,       0,       0,       0},//34
-{1,       6,       0,       0},//35
-{1,       6,       0,       0},//36
-{1,       6,       0,       1},//37
+{0,       0,       0,       0},//35
+{0,       0,       0,       0},//36
+{0,       0,       0,       0},//37
 {0,       0,       0,       0},//38
 {0,       0,       0,       0},//39
 {0,       0,       0,       0},//40
@@ -2108,6 +2110,7 @@ static unsigned int iic_write(unsigned int indata)
     return ackSign;
 }
 
+
 /*______________________________________________________________________________
 **	ledInit
 **
@@ -2120,7 +2123,6 @@ static unsigned int iic_write(unsigned int indata)
 **	call:
 **	revision:
 **____________________________________________________________________________*/
-
 void ledInit(void)
 {
 	uint8  i;
@@ -3554,6 +3556,7 @@ static int led_def_write_proc(struct file *file, const char *buffer,
 {
 	sscanf(get_buf, "%d %x %x %d %d", set_info, (set_info+1), (set_info+2), (set_info+3), (set_info+4));
 }
+
 	//set ledDefCtrl information
 	ledCtrl[set_info[0]].gpio  = set_info[1];
 	ledCtrl[set_info[0]].mode  = set_info[2];
@@ -5499,7 +5502,7 @@ static char* led_conf_path_find(void)
     }
         
     /*use default led.conf*/
-    if(i == arr_len)    
+    if(i == arr_len)
         p_path = path_table[arr_len-1].path;
 
     /*if TCSUPPORT_XPON_HAL_API_EXT,rewrite path*/
@@ -6118,7 +6121,7 @@ void led_button_cdev_exit(void)
 
 #endif
 
-unsigned int flag = 0;
+unsigned int flag_led = 0;
 unsigned int register_data = 0xff;
 
 unsigned int get_register(unsigned int id)
@@ -6145,12 +6148,26 @@ unsigned int get_register(unsigned int id)
 	}
 }
 
+// led flashing
 void led_shansuo(unsigned int id)
+{
+	if(flag_led)
+	{
+		led_open(id);
+	}else
+	{
+		led_close(id);
+	}
+}
+
+// led open
+void led_open(unsigned int id)
 {
 	unsigned int temp = get_register(id);
 	if(id>7)
-		id = id-8;
-	temp &= ~(1<<id);
+		temp &= ~(1<<(id-8));
+	else
+		temp &= ~(1<<id);
 	start();
 	iic_write(write_address);
 	iic_write(Config_Port_1);
@@ -6170,41 +6187,72 @@ void led_shansuo(unsigned int id)
 	{
 		iic_write(Out_Port0);
 	}
-	if(flag)
-	{
-		iic_write(temp);
-	}else
-	{
-		iic_write(close_light);
-	}
+
+	iic_write(temp);
 	stop();
 }
+// led close
+void led_close(unsigned int id)
+{
+	unsigned int temp = get_register(id);
+	if(id>7)
+		temp |= (1<<(id-8));
+	else
+		temp |= (1<<id);
+	start();
+	iic_write(write_address);
+	iic_write(Config_Port_1);
+	iic_write(enable_led1);
+	iic_write(enable_led0);
+	stop();
 
+	delay(sleep_time);
+	delay(sleep_time);
+
+	start();
+	iic_write(write_address);
+	if(id > 7)
+	{
+		iic_write(Out_Port1);
+	}else
+	{
+		iic_write(Out_Port0);
+	}
+
+	iic_write(temp);
+	stop();	
+}
+// read key
 void read_key(void)
 {
-	unsigned int temp,temp1 = 0; 
-    unsigned int value; 
-    start();
-    iic_write(write_address);
-    iic_write(In_Port0);
-    delay(sleep_time);
-    delay(sleep_time); 
-    DO_IIC_SH(SCL);
-    DO_IIC_SH(SDA);
-    start();
-    iic_write(read_address);
-    temp = ii2_read(0);
-    temp1 = ii2_read(1);
-	value = (temp1>>26)&0x01;
-    stop();
-    if(!value)
+	unsigned int value;
+	value = LED_GET_GPIO_DATA(INT);
+    if(!((value>>26)&0x01))
 	{
 		printk("this is key pressed\n");
 	}else
 	{
-		rintk("this is key not pressed\n");
+		printk("this is key not pressed\n");
 	}
 }
+
+static int key_init(void)
+{
+	unsigned int temp = get_register(0);
+	unsigned int value;
+	temp |= 0x01;
+    IIC_IEN(INT);
+    start();
+    iic_write(write_address);
+    iic_write(Config_Port_0);
+    iic_write(temp);
+    stop();   
+
+    value = LED_GET_GPIO_DATA(INT);
+    printk(KERN_INFO "the key's value is %d\n", value>>INT);
+	return 0;
+}
+
 
 void mytimer_task(struct timer_list  *timer)
 {
@@ -6212,9 +6260,9 @@ void mytimer_task(struct timer_list  *timer)
     mod_timer(&mytimer,jiffies + msecs_to_jiffies(4000));
 	printk("this is my timer1 interrupt\n");
 	
-	flag = ~flag;
+	flag_led = ~flag_led;
 	led_shansuo(VPN_LED);
-	msleep(50);
+	read_key();
 }
 
 static int __init tc3162_led_init(void)
@@ -6253,6 +6301,7 @@ static int __init tc3162_led_init(void)
     //printk("read_data = %d, line = %d.\n", read_data, __LINE__);
     regWrite32(CR_GPIO_DATA1, read_data);
     
+    /*set gpio 0 ~~5  input mode*/
     read_data = regRead32(CR_GPIO_CTRL);
     read_data &= 0xfffff000;
     regWrite32(CR_GPIO_CTRL,read_data);
@@ -6260,14 +6309,15 @@ static int __init tc3162_led_init(void)
     read_data = regRead32(CR_GPIO_ODRAIN);
     read_data &= 0xffffffc0;
     regWrite32(CR_GPIO_ODRAIN,read_data);	
-	
-    IIC_OEN(SCL);
+
+
+	IIC_OEN(SCL);
     IIC_OEN(SDA);
 
 	DO_IIC_SH(SDA);
     DO_IIC_SH(SCL);
 
-	// LED_OEN(1);
+	key_init();
 #endif
 
 #if defined(TCSUPPORT_CT_BUTTONDETECT)
@@ -6295,7 +6345,6 @@ static int __init tc3162_led_init(void)
 #endif
 
 	add_timer(&mytimer);
-
 	/* led definition */
 	led_proc = create_proc_entry("tc3162/led_def", 0, NULL);
 	led_proc->read_proc = led_def_read_proc;
