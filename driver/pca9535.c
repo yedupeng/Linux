@@ -215,6 +215,8 @@
 #define LAN_LED_ON 1
 #define LAN_LED_RECOVER 2
 
+#define IS_LED_GPIO
+
 #define sleep_time 10
 #define write_address 0x4E
 #define read_address 0x4F
@@ -244,7 +246,6 @@
 
 static struct timer_list mytimer;
 
-
 #define close_light 0xFF
 #define enable_led1 0xF8
 #define enable_led0 0x21
@@ -255,6 +256,7 @@ static void delay(unsigned int time_num)
 {
     while(time_num--);
 }
+
 
 #ifdef TCSUPPORT_CPU_ARMV8
 static inline uint32 regRead32(unsigned long reg)		\
@@ -680,6 +682,7 @@ extern void gpio_spin_unlock(void);
 						} while (0)
 
 #define DO_LED_ON(x, b) do {	gpio_spin_lock(); \
+
 						if(!(led_wifi(WLAN_LED_ON, x, b))){							\
 							if (isSerialGPIO[LED_GPIO2(x)]||isSerialGPIO[LED_GPIO1(x)]){	\
 								uint32 value = regRead32(CR_SGPIO_DATA);			\
@@ -1191,7 +1194,7 @@ static int led_switch_button_pressed = 0;    // indicates if the led switch is p
 #endif
 
 
-int xpon_los_status = 0;              // indicate if there is optical signal
+int xpon_los_status = 1;              // indicate if there is optical signal
 EXPORT_SYMBOL(xpon_los_status);
 
 #if defined(TCSUPPORT_XPON_LED)
@@ -2060,12 +2063,12 @@ static unsigned int ii2_read(int is_nack)
     if(!read_data || is_nack)
     {
         sd_nack();
-        printk(KERN_INFO "no ack\n");
+        // printk(KERN_INFO "no ack\n");
     }
     else
     {
         sd_ack();
-        printk(KERN_INFO "ack\n");
+        // printk(KERN_INFO "ack\n");
     }
     return read_data;
 }
@@ -2227,7 +2230,7 @@ void ledInit(void)
 }
 
 static ledctrl_t sysBootLedCtrl;
-#if 0//not used
+// #if 1//not used
 /*______________________________________________________________________________
 **	ledSysInitOn
 **
@@ -2240,64 +2243,79 @@ static ledctrl_t sysBootLedCtrl;
 **	call:
 **	revision:
 **____________________________________________________________________________*/
-void ledSysInitOn(void)
-{
-	uint8  i;
+// void ledSysInitOn(void)
+// {
+// 	uint8  i;
 
-	if (ledCtrl[LED_SYS_INIT_STATUS].mode == LED_MODE_NOT_USED)
-		return;
+// 	if (ledCtrl[LED_SYS_INIT_STATUS].mode == LED_MODE_NOT_USED)
+// 		return;
 
-	sysBootLedCtrl = ledCtrl[LED_SYS_BOOT_STATUS];
-	ledCtrl[LED_SYS_BOOT_STATUS].mode = LED_MODE_NOT_USED;
+// 	sysBootLedCtrl = ledCtrl[LED_SYS_BOOT_STATUS];
+// 	ledCtrl[LED_SYS_BOOT_STATUS].mode = LED_MODE_NOT_USED;
 
-	for (i = 0; i < LED_MAX_NO; i++) {
-		if ((((ledCtrl[i].mode != LED_MODE_NOT_USED) && (ledCtrl[i].mode != LED_MODE_NOACT))
-				|| (i == LED_SYS_BOOT_STATUS)) && (i != LED_LAN_RESET)) {
-			if (ledCtrl[i].onoff)
-				LED_OFF(ledCtrl[i].gpio);
-			else
-				LED_ON(ledCtrl[i].gpio);
-			//LED_ON(ledCtrl[i].gpio);
-		}
-	}
-	mdelay(500);
-}
+// 	for (i = 0; i < LED_MAX_NO; i++) {
+// 		if ((((ledCtrl[i].mode != LED_MODE_NOT_USED) && (ledCtrl[i].mode != LED_MODE_NOACT))
+// 				|| (i == LED_SYS_BOOT_STATUS)) && (i != LED_LAN_RESET)) {
+// 			if (ledCtrl[i].onoff)
+// 				// LED_OFF(ledCtrl[i].gpio);
+// 			{
+// 				led_open(SYS_GREEN_LED);
+// 				led_close(SYS_RED_LED);
+// 			}
+// 			else
+// 			{
+// 				led_open(SYS_RED_LED);
+// 				led_close(SYS_GREEN_LED);
+// 			}
+// 				// LED_ON(ledCtrl[i].gpio);
+// 			//LED_ON(ledCtrl[i].gpio);
+// 		}
+// 	}
+// 	mdelay(500);
+// }
 
 
-/*______________________________________________________________________________
-**	ledSysInitOff
-**
-**	descriptions:
-**	parameters:
-**	local:
-**	global:
-**	return:
-**	called by:
-**	call:
-**	revision:
-**____________________________________________________________________________*/
-void ledSysInitOff(void)
-{
-	uint8  i;
+// /*______________________________________________________________________________
+// **	ledSysInitOff
+// **
+// **	descriptions:
+// **	parameters:
+// **	local:
+// **	global:
+// **	return:
+// **	called by:
+// **	call:
+// **	revision:
+// **____________________________________________________________________________*/
+// void ledSysInitOff(void)
+// {
+// 	uint8  i;
 
-	if (ledCtrl[LED_SYS_INIT_STATUS].mode == LED_MODE_NOT_USED)
-		return;
+// 	if (ledCtrl[LED_SYS_INIT_STATUS].mode == LED_MODE_NOT_USED)
+// 		return;
 
-	for (i = 0; i < LED_MAX_NO; i++) {
-		if (((ledCtrl[i].mode != LED_MODE_NOT_USED) && (ledCtrl[i].mode != LED_MODE_NOACT))
-				&& (i != LED_LAN_RESET)) {
-			if (ledCtrl[i].onoff)
-				LED_ON(ledCtrl[i].gpio);
-			else
-				LED_OFF(ledCtrl[i].gpio);
-			//LED_OFF(ledCtrl[i].gpio);
-		}
-	}
-	ledCtrl[LED_SYS_BOOT_STATUS] = sysBootLedCtrl;
-	//mdelay(500);
-}
-#endif
-
+// 	for (i = 0; i < LED_MAX_NO; i++) {
+// 		if (((ledCtrl[i].mode != LED_MODE_NOT_USED) && (ledCtrl[i].mode != LED_MODE_NOACT))
+// 				&& (i != LED_LAN_RESET)) {
+// 			if (ledCtrl[i].onoff)
+// 			{
+// 				led_open(SYS_GREEN_LED);
+// 				led_close(SYS_RED_LED);
+// 			}
+// 				// LED_ON(ledCtrl[i].gpio);
+// 			else
+// 				// LED_OFF(ledCtrl[i].gpio);
+// 			{
+// 				led_open(SYS_RED_LED);
+// 				led_close(SYS_GREEN_LED);
+// 			}
+// 			//LED_OFF(ledCtrl[i].gpio);
+// 		}
+// 	}
+// 	ledCtrl[LED_SYS_BOOT_STATUS] = sysBootLedCtrl;
+// 	//mdelay(500);
+// }
+// #endif
 /*______________________________________________________________________________
 **	ledTurnOn
 **
@@ -2310,14 +2328,60 @@ void ledSysInitOff(void)
 **	call:
 **	revision:
 **____________________________________________________________________________*/
+unsigned int check_gpio(unsigned int id)
+{
+	switch(id)
+	{
+		// case LED_USB_STATUS:
+		// 	return USB_LED;
+		case LED_XPON_STATUS:
+			return PON_LED;	
+		case LED_USB2_STATUS:
+			return USB_LED;
+		case LED_USB2_ACT_STATUS:
+			return USB_LED;
+		case LED_WLAN_STATUS:
+			return WIFI_LED; 	
+		case LED_XPON_LOS_ON_STATUS:
+			return LOS_LED;
+	}
+	return 0;
+}
+
 __IMEM void ledTurnOn(uint8 led_no)
 {
 	if (led_stop) {
 		if (led_no != LED_PHY_VCC_DISABLE && led_no != LED_PHY_TX_POWER_DISABLE)
 		return;
 	}	
+	unsigned int temp;
 
 	switch(LED_MODE(ledCtrl[led_no].mode)) {
+#ifdef IS_LED_GPIO
+		case LED_MODE_NOT_USED:
+			return;
+		case LED_MODE_ONOFF:
+			if (led_no == LED_SYS_STATUS) {	
+				if (ledCtrl[led_no].onoff) {
+					led_open(SYS_GREEN_LED);
+					led_close(SYS_RED_LED);
+					gpioOnOff[(ledCtrl[led_no].gpio)] = 1;
+				} else {
+					led_open(SYS_RED_LED);
+					led_close(SYS_GREEN_LED);
+					gpioOnOff[(ledCtrl[led_no].gpio)] = 0;
+				}
+			} else {
+				temp = check_gpio(led_no);
+				if(temp)
+				{
+					// printk(KERN_INFO "the open temp is %d\n", temp);
+					led_open(temp);
+					gpioOnOff[(ledCtrl[led_no].gpio)] = 1;
+				}
+			}
+			break;
+#else
 		case LED_MODE_NOT_USED:
 			return;
 		case LED_MODE_ONOFF:
@@ -2342,6 +2406,7 @@ __IMEM void ledTurnOn(uint8 led_no)
 				}
 			}
 			break;
+#endif
 		case LED_MODE_BLINK:
 			ledVar[led_no].data = 1;
 #if defined(TCSUPPORT_CT) && defined(LED_WPSSPEC_COMPLY)
@@ -2382,8 +2447,23 @@ void ledTurnOff(uint8 led_no)
 		if (led_no != LED_PHY_VCC_DISABLE && led_no != LED_PHY_TX_POWER_DISABLE)
 		return;
 	}
-
+	unsigned int temp;
 	switch(LED_MODE(ledCtrl[led_no].mode)) {
+#ifdef IS_LED_GPIO
+		case LED_MODE_NOT_USED:
+			return;
+		case LED_MODE_ONOFF:
+			temp = check_gpio(led_no);
+			if(temp)
+			{
+				// printk(KERN_INFO "the close temp is %d\n", temp);
+				led_close(temp);
+				if(temp==LED_XPON_STATUS)
+					printk(KERN_INFO "the close temp is %d\n", temp);
+				gpioOnOff[(ledCtrl[led_no].gpio)] = 0;
+			}
+			break;
+#else
 		case LED_MODE_NOT_USED:
 			return;
 		case LED_MODE_ONOFF:
@@ -2391,13 +2471,14 @@ void ledTurnOff(uint8 led_no)
 			LED_DBG_B("\r\n off led onoff bit=", ledCtrl[led_no].onoff);
 			LED_DBG_B(" gpio=", ledCtrl[led_no].gpio);
 			if (ledCtrl[led_no].onoff) {
-				LED_ON(ledCtrl[led_no].gpio, LED_BICOLOR(ledCtrl[led_no].mode));
+			LED_ON(ledCtrl[led_no].gpio, LED_BICOLOR(ledCtrl[led_no].mode));
 				gpioOnOff[(ledCtrl[led_no].gpio)] = 1;
 			} else {
 				LED_OFF(ledCtrl[led_no].gpio,LED_BICOLOR(ledCtrl[led_no].mode));
 				gpioOnOff[(ledCtrl[led_no].gpio)] = 0;
 			}
 			break;
+#endif
 		case LED_MODE_BLINK:
 			LED_DBG_B("\r\n blink off led_no=", led_no);
 			LED_DBG_B(" gpio=", ledCtrl[led_no].gpio);
@@ -2901,7 +2982,9 @@ void ledTimer(unsigned long data)
 #ifdef TCSUPPORT_USB_HOST_LED
 #if defined(TCSUPPORT_CPU_MT7510) || defined(TCSUPPORT_CPU_MT7520) || defined(TCSUPPORT_CPU_MT7505) || defined(TCSUPPORT_CPU_EN7521)
 	if(Usb_Led_Flash_Op_hook)
-			Usb_Led_Flash_Op_hook(USB_DEFAULT,0);//not care phy port,so set to 0
+	{
+		Usb_Led_Flash_Op_hook(USB_DEFAULT,0);//not care phy port,so set to 0
+	}
 #else
 	if(usb_dev_connected){
 		if(usb_led_blink){
@@ -3293,6 +3376,7 @@ void inputButtonTimer(unsigned long data)
 			gButtonType = 1;
 			printk("Reset button is pressed! \r\n");
 		}
+	
 #endif
 #endif
 #if defined(TCSUPPORT_CT_LONG_RESETBTN) || defined(TCSUPPORT_CY) || defined(TCSUPPORT_C1_ZY)
@@ -5669,7 +5753,7 @@ void Usb_Led_Flash_Op(unsigned int opmode ,unsigned int phyport)
 {
 	int temp = 0;
 	int phyport_sw = phyport;
-
+    // printk("the opmmode is %d\n", opmode);
 	if (isEN7526c)
 		phyport_sw = USBPHYPORT2;
 
@@ -5745,23 +5829,28 @@ void Usb_Led_Flash_Op(unsigned int opmode ,unsigned int phyport)
 		if(usb_dev_status){
 			if(usb_phyport_status & (1<<USBPHYPORT1))
 			{
+				// printk("1\n");
 				ledTurnOn(LED_USB_STATUS);
 			}
 			else
 			{
+				// printk("2\n");
 				ledTurnOff(LED_USB_STATUS);
 			}
 			
 			if(usb_phyport_status & (1<<USBPHYPORT2))
 			{
+				// printk("3\n");
 				ledTurnOn(LED_USB2_STATUS);
 			}
 			else
 			{
+				// printk("4\n");
 				ledTurnOff(LED_USB2_STATUS);
 			}
 		}
 		else{
+			// printk("5\n");
 			ledTurnOff(LED_USB_STATUS);
 			ledTurnOff(LED_USB_ACT_STATUS);
 			ledTurnOff(LED_USB2_STATUS);
@@ -5836,10 +5925,12 @@ void WLanLedBlink(void)
 					LED_OFF(ledCtrl[LED_WLAN_ACT_STATUS].gpio,LED_BICOLOR(ledCtrl[LED_WLAN_ACT_STATUS].mode));
 					flag = 0;	
 					wifi_ap_blink = 0;
+					ledTurnOff(LED_WLAN_ACT_STATUS);
 				}
 				else {
 					LED_ON(ledCtrl[LED_WLAN_ACT_STATUS].gpio,LED_BICOLOR(ledCtrl[LED_WLAN_ACT_STATUS].mode));
 					flag = 1;
+					ledTurnOn(LED_WLAN_STATUS);
 				}
 				ledVar[LED_WLAN_ACT_STATUS].blink_no = 0;
 			}
@@ -6257,12 +6348,13 @@ static int key_init(void)
 void mytimer_task(struct timer_list  *timer)
 {
     unsigned int temp,temp1 = 0; 
-    mod_timer(&mytimer,jiffies + msecs_to_jiffies(4000));
-	printk("this is my timer1 interrupt\n");
+    mod_timer(&mytimer,jiffies + msecs_to_jiffies(1000));
+	// led_open(SYS_RED_LED);
+	// printk("this is my timer1 interrupt\n");
 	
 	flag_led = ~flag_led;
-	led_shansuo(VPN_LED);
-	read_key();
+	led_shansuo(WEB_MASTER_LED);
+	//read_key();
 }
 
 static int __init tc3162_led_init(void)
@@ -6788,11 +6880,19 @@ int doLedOn(void)
 			|| i == LED_XPON_UPGRADE 
 #endif
 			|| i == LED_XPON_LOS_ON_STATUS || i==LED_XPON_LOS_STATUS)
+#ifdef IS_LED_GPIO
+			{
+				printk("do led on");
+				led_close(i);
+			}
+			else
+				led_open(i);
+#else
 				LED_OFF(ledCtrl[i].gpio, LED_BICOLOR(ledCtrl[i].mode));
 			else
-			#endif
-			LED_ON(ledCtrl[i].gpio,LED_BICOLOR(ledCtrl[i].mode));
-
+				LED_ON(ledCtrl[i].gpio,LED_BICOLOR(ledCtrl[i].mode));
+#endif
+#endif
 	}//end for
 
 #else
@@ -6917,10 +7017,21 @@ int doLedOff(void)
 			|| i == LED_XPON_UPGRADE 
 #endif
 			|| i == LED_XPON_LOS_ON_STATUS || i==LED_XPON_LOS_STATUS)
+#ifdef IS_LED_GPIO
+			{
+				led_open(i);
+			}
+			else
+			{
+				led_close(i);
+				printk("do led off");
+			}
+#else
 				LED_ON(ledCtrl[i].gpio, LED_BICOLOR(ledCtrl[i].mode));
 			else
-			#endif
-			LED_OFF(ledCtrl[i].gpio, LED_BICOLOR(ledCtrl[i].mode));
+				LED_OFF(ledCtrl[i].gpio, LED_BICOLOR(ledCtrl[i].mode));
+#endif
+#endif
 	}//end for
 #else	
 			if(LED_MODE(ledCtrl[i].mode) !=LED_MODE_NOACT )  
