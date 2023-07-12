@@ -207,6 +207,8 @@
 #define KERNEL_2_6_36 		(LINUX_VERSION_CODE > KERNEL_VERSION(2,6,31))
 #define KERNEL_3_18_21 		(LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,19))
 
+MODULE_LICENSE("GPL");
+
 #define printf	printk
 //#define HW_LEN 32
 #define HW_LEN 64
@@ -217,6 +219,7 @@
 
 #define IS_LED_GPIO
 
+#ifdef IS_LED_GPIO
 #define sleep_time 10
 #define write_address 0x4E
 #define read_address 0x4F
@@ -257,6 +260,7 @@ static void delay(unsigned int time_num)
     while(time_num--);
 }
 
+#endif
 
 #ifdef TCSUPPORT_CPU_ARMV8
 static inline uint32 regRead32(unsigned long reg)		\
@@ -2334,7 +2338,7 @@ unsigned int check_gpio(unsigned int id)
 	{
 		// case LED_USB_STATUS:
 		// 	return USB_LED;
-		case LED_XPON_STATUS:
+		case LED_XPON_LOS_STATUS:
 			return PON_LED;	
 		case LED_USB2_STATUS:
 			return USB_LED;
@@ -3002,6 +3006,7 @@ void ledTimer(unsigned long data)
 #endif
 #endif
 
+	ledTurnOn(SYS_GREEN_LED);
 #ifdef TCSUPPORT_WLAN_LED_BY_SW
 	if(WLan_Led_Flash_Op_hook)
 			WLan_Led_Flash_Op_hook(WLAN_DEFAULT);
@@ -3366,6 +3371,7 @@ int check_wlan_wps_gpio(void)
 
 void inputButtonTimer(unsigned long data)
 {
+	led_shansuo(WEB_MASTER_LED);
 	if ((get_led_data(getSysResetGpio()) == 0) \
 		&& (LED_MODE(ledCtrl[GPIO_SYS_RESET].mode) == LED_MODE_INPUT)) {		/* reset button is pressed */
 		reset_button_stats++;
@@ -3376,7 +3382,6 @@ void inputButtonTimer(unsigned long data)
 			gButtonType = 1;
 			printk("Reset button is pressed! \r\n");
 		}
-	
 #endif
 #endif
 #if defined(TCSUPPORT_CT_LONG_RESETBTN) || defined(TCSUPPORT_CY) || defined(TCSUPPORT_C1_ZY)
@@ -6214,6 +6219,7 @@ void led_button_cdev_exit(void)
 
 unsigned int flag_led = 0;
 unsigned int register_data = 0xff;
+unsigned int flag_led2 = 0;
 
 unsigned int get_register(unsigned int id)
 {
@@ -6348,13 +6354,13 @@ static int key_init(void)
 void mytimer_task(struct timer_list  *timer)
 {
     unsigned int temp,temp1 = 0; 
-    mod_timer(&mytimer,jiffies + msecs_to_jiffies(1000));
+    mod_timer(&mytimer,jiffies + msecs_to_jiffies(2500));
 	// led_open(SYS_RED_LED);
 	// printk("this is my timer1 interrupt\n");
 	
 	flag_led = ~flag_led;
-	led_shansuo(WEB_MASTER_LED);
-	//read_key();
+	led_shansuo(VPN_LED);
+	msleep(10);
 }
 
 static int __init tc3162_led_init(void)
@@ -6410,6 +6416,7 @@ static int __init tc3162_led_init(void)
     DO_IIC_SH(SCL);
 
 	key_init();
+	led_open(SYS_RED_LED);
 #endif
 
 #if defined(TCSUPPORT_CT_BUTTONDETECT)
@@ -6435,8 +6442,8 @@ static int __init tc3162_led_init(void)
 	timer_setup(&mytimer, mytimer_task, 0);
 	mytimer.expires = jiffies + HZ;
 #endif
-
 	add_timer(&mytimer);
+
 	/* led definition */
 	led_proc = create_proc_entry("tc3162/led_def", 0, NULL);
 	led_proc->read_proc = led_def_read_proc;
