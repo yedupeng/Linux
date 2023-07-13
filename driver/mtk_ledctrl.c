@@ -2362,9 +2362,7 @@ __IMEM void ledTurnOn(uint8 led_no)
 
 	switch(LED_MODE(ledCtrl[led_no].mode)) {
 #ifdef IS_LED_GPIO
-		case LED_MODE_NOT_USED:
-			return;
-		case LED_MODE_ONOFF:
+		case LED_MODE_I2C:
 			if (led_no == LED_SYS_STATUS) {	
 				if (ledCtrl[led_no].onoff) {
 					led_open(SYS_GREEN_LED);
@@ -2385,7 +2383,7 @@ __IMEM void ledTurnOn(uint8 led_no)
 				}
 			}
 			break;
-#else
+#endif
 		case LED_MODE_NOT_USED:
 			return;
 		case LED_MODE_ONOFF:
@@ -2410,7 +2408,6 @@ __IMEM void ledTurnOn(uint8 led_no)
 				}
 			}
 			break;
-#endif
 		case LED_MODE_BLINK:
 			ledVar[led_no].data = 1;
 #if defined(TCSUPPORT_CT) && defined(LED_WPSSPEC_COMPLY)
@@ -2454,9 +2451,7 @@ void ledTurnOff(uint8 led_no)
 	unsigned int temp;
 	switch(LED_MODE(ledCtrl[led_no].mode)) {
 #ifdef IS_LED_GPIO
-		case LED_MODE_NOT_USED:
-			return;
-		case LED_MODE_ONOFF:
+		case LED_MODE_I2C:
 			temp = check_gpio(led_no);
 			if(temp)
 			{
@@ -2467,7 +2462,7 @@ void ledTurnOff(uint8 led_no)
 				gpioOnOff[(ledCtrl[led_no].gpio)] = 0;
 			}
 			break;
-#else
+#endif
 		case LED_MODE_NOT_USED:
 			return;
 		case LED_MODE_ONOFF:
@@ -2482,7 +2477,6 @@ void ledTurnOff(uint8 led_no)
 				gpioOnOff[(ledCtrl[led_no].gpio)] = 0;
 			}
 			break;
-#endif
 		case LED_MODE_BLINK:
 			LED_DBG_B("\r\n blink off led_no=", led_no);
 			LED_DBG_B(" gpio=", ledCtrl[led_no].gpio);
@@ -6324,12 +6318,12 @@ void read_key(void)
 {
 	unsigned int value;
 	value = LED_GET_GPIO_DATA(INT);
-    if(!((value>>26)&0x01))
+    if(value>>INT)
 	{
-		printk("this is key pressed\n");
+		printk(KERN_INFO "the key's value is %d\n", value>>INT);
 	}else
 	{
-		printk("this is key not pressed\n");
+		printk(KERN_INFO "the key's value is %d\n", value>>INT);
 	}
 }
 
@@ -6360,6 +6354,7 @@ void mytimer_task(struct timer_list  *timer)
 	
 	flag_led = ~flag_led;
 	led_shansuo(VPN_LED);
+	read_key();
 	msleep(10);
 }
 
