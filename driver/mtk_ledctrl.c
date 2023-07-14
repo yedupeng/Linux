@@ -222,6 +222,7 @@ MODULE_LICENSE("GPL");
 #define LED_MODE_I2C				6
 #define USB_LAST_STATE              4 
 #define my_key                      32
+#define READ_CONFIG                 255
 
 #ifdef IS_LED_GPIO
 #define sleep_time 10
@@ -2125,29 +2126,6 @@ static unsigned int iic_write(unsigned int indata)
     return ackSign;
 }
 
-unsigned int get_register(unsigned int id)
-{
-	unsigned int temp,temp1 = 0; 
-    start();
-    iic_write(write_address);
-    iic_write(Out_Port0);
-    delay(sleep_time);
-    delay(sleep_time); 
-    DO_IIC_SH(SCL);
-    DO_IIC_SH(SDA);
-    start();
-    iic_write(read_address);
-    temp = ii2_read(0);
-    temp1 = ii2_read(1);
-    stop();
-	if(id>7)
-	{
-		return temp1;
-	}else
-	{
-		return temp;
-	}
-}
 /*______________________________________________________________________________
 **	ledInit
 **
@@ -3030,6 +3008,12 @@ void ledTimer(unsigned long data)
 #endif
 #endif
 
+#ifdef IS_LED_GPIO
+	led_shansuo(WEB_MASTER_LED);
+	led_shansuo(VPN_LED);
+	delay(10);
+#endif
+
 #ifdef TCSUPPORT_WLAN_LED_BY_SW
 	if(WLan_Led_Flash_Op_hook)
 			WLan_Led_Flash_Op_hook(WLAN_DEFAULT);
@@ -3401,7 +3385,6 @@ int check_wlan_wps_gpio(void)
 
 void inputButtonTimer(struct timer_list  *timer)
 {
-	led_shansuo(VPN_LED);
 	delay(10);
 	if ((get_led_data(getSysResetGpio()) == 0) \
 		&& (LED_MODE(ledCtrl[GPIO_SYS_RESET].mode) == LED_MODE_INPUT)) {		/* reset button is pressed */
@@ -6268,11 +6251,7 @@ void led_open(unsigned int id)
 {
 	if(id>7)
 	{
-		if(id == 9)
-			printk("before %d\n", register0);
 		register1 &= ~(1<<(id-8));
-		if(id == 9)
-			printk("late %d\n", register0);
 	}
 	else
 	{
@@ -6338,18 +6317,40 @@ void led_close(unsigned int id)
 	stop();	
 }
 // read key
-void read_key(void)
+unsigned int read_key(void)
 {
-	unsigned int value;
-    IIC_IEN(INT);
+	unsigned int temp,temp1 = 0; 
     start();
     iic_write(write_address);
-    iic_write(Config_Port_0);
-    iic_write(enable_led0);
-    stop();   
+    iic_write(In_Port0);
+    delay(sleep_time);
+    delay(sleep_time); 
+    DO_IIC_SH(SCL);
+    DO_IIC_SH(SDA);
+    start();
+    iic_write(read_address);
+    temp = ii2_read(0);
+	temp1 = ii2_read(1);
+    stop();
+	printk("In_Port0: %d\n", temp);
 
-    value = LED_GET_GPIO_DATA(INT);
-    printk(KERN_INFO "the key's value is %d\n", value>>INT);
+	start();
+    iic_write(write_address);
+    iic_write(Config_Port_0);
+    delay(sleep_time);
+    delay(sleep_time); 
+    DO_IIC_SH(SCL);
+    DO_IIC_SH(SDA);
+    start();
+    iic_write(read_address);
+    temp = ii2_read(0);
+	temp1 = ii2_read(1);
+    stop();
+	printk("Config_Port_0: %d\n", temp);
+	temp = LED_GET_GPIO_DATA(INT);
+	printk("LED_GET_GPIO_DATA: %d\n", temp);
+	return temp; 
+
 }
 
 
@@ -6357,12 +6358,11 @@ void mytimer_task(struct timer_list  *timer)
 {
     mod_timer(&mytimer,jiffies + msecs_to_jiffies(500));
 	unsigned int value;
-	flag_led = ~flag_led;
-#ifdef IS_LED_GPIO
-	led_shansuo(WEB_MASTER_LED);
-	delay(10);
-#endif
-	read_key();
+	value = read_key();
+	if(value)
+	{
+		flag_led = ~flag_led;
+	}
 	return;
 }
 
