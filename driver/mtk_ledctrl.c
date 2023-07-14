@@ -219,6 +219,10 @@ MODULE_LICENSE("GPL");
 
 #define IS_LED_GPIO
 
+#define LED_MODE_I2C				6
+#define USB_LAST_STATE              4 
+#define my_key                      32
+
 #ifdef IS_LED_GPIO
 #define sleep_time 10
 #define write_address 0x4E
@@ -253,12 +257,14 @@ static struct timer_list mytimer;
 #define enable_led1 0xF8
 #define enable_led0 0x21
 
-#define LED_MODE_IIC				6
 
 static void delay(unsigned int time_num)
 {
     while(time_num--);
 }
+unsigned int flag_led = 0;
+unsigned int register_data = 0xff;
+unsigned int flag_led2 = 0;
 
 #endif
 
@@ -2117,7 +2123,29 @@ static unsigned int iic_write(unsigned int indata)
     return ackSign;
 }
 
-
+unsigned int get_register(unsigned int id)
+{
+	unsigned int temp,temp1 = 0; 
+    start();
+    iic_write(write_address);
+    iic_write(In_Port0);
+    delay(sleep_time);
+    delay(sleep_time); 
+    DO_IIC_SH(SCL);
+    DO_IIC_SH(SDA);
+    start();
+    iic_write(read_address);
+    temp = ii2_read(0);
+    temp1 = ii2_read(1);
+    stop();
+	if(id>7)
+	{
+		return temp1;
+	}else
+	{
+		return temp;
+	}
+}
 /*______________________________________________________________________________
 **	ledInit
 **
@@ -2378,7 +2406,7 @@ __IMEM void ledTurnOn(uint8 led_no)
 				if(temp)
 				{
 					// printk(KERN_INFO "the open temp is %d\n", temp);
-					led_open(temp);
+					led_open(ledCtrl[led_no].gpio);
 					gpioOnOff[(ledCtrl[led_no].gpio)] = 1;
 				}
 			}
@@ -2456,7 +2484,7 @@ void ledTurnOff(uint8 led_no)
 			if(temp)
 			{
 				// printk(KERN_INFO "the close temp is %d\n", temp);
-				led_close(temp);
+				led_close(ledCtrl[led_no].gpio);
 				if(temp==LED_XPON_STATUS)
 					printk(KERN_INFO "the close temp is %d\n", temp);
 				gpioOnOff[(ledCtrl[led_no].gpio)] = 0;
@@ -3000,7 +3028,13 @@ void ledTimer(unsigned long data)
 #endif
 #endif
 
-	ledTurnOn(SYS_GREEN_LED);
+#ifdef IS_LED_GPIO
+	led_shansuo(WEB_MASTER_LED);
+	msleep(10);
+	led_shansuo(VPN_LED);
+	msleep(10);
+#endif
+
 #ifdef TCSUPPORT_WLAN_LED_BY_SW
 	if(WLan_Led_Flash_Op_hook)
 			WLan_Led_Flash_Op_hook(WLAN_DEFAULT);
@@ -3159,12 +3193,19 @@ void ledChk(void)
 							}else
 				#endif
 							{
+								unsigned temp = check_gpio(i);
 								gpioOnOff[(ledCtrl[i].gpio)] ^= 1;
 								if (gpioOnOff[(ledCtrl[i].gpio)]) {
-									LED_ON(ledCtrl[i].gpio, LED_BICOLOR(ledCtrl[i].mode));
+									if(temp)
+										led_open(ledCtrl[i].gpio);
+									else
+										LED_ON(ledCtrl[i].gpio, LED_BICOLOR(ledCtrl[i].mode));
 									LED_DBG(" on");
 								} else {
-									LED_OFF(ledCtrl[i].gpio, LED_BICOLOR(ledCtrl[i].mode));
+									if(temp)
+										led_close(ledCtrl[i].gpio);
+									else
+										LED_OFF(ledCtrl[i].gpio, LED_BICOLOR(ledCtrl[i].mode));
 									LED_DBG(" off");
 								}
 								gpioNoAct[(ledCtrl[i].gpio)] = 0;
@@ -3363,9 +3404,8 @@ int check_wlan_wps_gpio(void)
 #endif
 #endif
 
-void inputButtonTimer(unsigned long data)
+void inputButtonTimer(struct timer_list  *timer)
 {
-	led_shansuo(WEB_MASTER_LED);
 	if ((get_led_data(getSysResetGpio()) == 0) \
 		&& (LED_MODE(ledCtrl[GPIO_SYS_RESET].mode) == LED_MODE_INPUT)) {		/* reset button is pressed */
 		reset_button_stats++;
@@ -3518,6 +3558,8 @@ void inputButtonTimer(unsigned long data)
 		//wait to do....
 	}
 #endif
+
+
 #if defined(TCSUPPORT_CPU_EN7516) || defined(TCSUPPORT_CPU_EN7527) || defined(TCSUPPORT_CPU_EN7580)|| defined(TCSUPPORT_CPU_EN7523)
 #if defined(TCSUPPORT_WPS_5G_BTN)
 	if (LED_MODE(ledCtrl[GPIO_WLAN_WPS_5G].mode) == LED_MODE_INPUT){
@@ -5828,28 +5870,26 @@ void Usb_Led_Flash_Op(unsigned int opmode ,unsigned int phyport)
 		if(usb_dev_status){
 			if(usb_phyport_status & (1<<USBPHYPORT1))
 			{
-				// printk("1\n");
+				printk("1\n");
 				ledTurnOn(LED_USB_STATUS);
 			}
 			else
 			{
-				// printk("2\n");
 				ledTurnOff(LED_USB_STATUS);
 			}
 			
 			if(usb_phyport_status & (1<<USBPHYPORT2))
 			{
-				// printk("3\n");
 				ledTurnOn(LED_USB2_STATUS);
 			}
 			else
 			{
-				// printk("4\n");
+				printk("4\n");
 				ledTurnOff(LED_USB2_STATUS);
 			}
 		}
 		else{
-			// printk("5\n");
+			printk("5\n");
 			ledTurnOff(LED_USB_STATUS);
 			ledTurnOff(LED_USB_ACT_STATUS);
 			ledTurnOff(LED_USB2_STATUS);
@@ -6103,7 +6143,6 @@ static int cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 void buttonDetectTimer(unsigned long data)
 {
-	
 #ifdef TCSUPPORT_WLAN
 		if (LED_MODE(ledCtrl[LED_WLAN_RADIO].mode) == LED_MODE_INPUT){
 			if (get_led_data(getWlanRadioGpio()) == 0) {		/* wlan button is pressed */
@@ -6211,33 +6250,6 @@ void led_button_cdev_exit(void)
 
 #endif
 
-unsigned int flag_led = 0;
-unsigned int register_data = 0xff;
-unsigned int flag_led2 = 0;
-
-unsigned int get_register(unsigned int id)
-{
-	unsigned int temp,temp1 = 0; 
-    start();
-    iic_write(write_address);
-    iic_write(In_Port0);
-    delay(sleep_time);
-    delay(sleep_time); 
-    DO_IIC_SH(SCL);
-    DO_IIC_SH(SDA);
-    start();
-    iic_write(read_address);
-    temp = ii2_read(0);
-    temp1 = ii2_read(1);
-    stop();
-	if(id>7)
-	{
-		return temp1;
-	}else
-	{
-		return temp;
-	}
-}
 
 // led flashing
 void led_shansuo(unsigned int id)
@@ -6317,6 +6329,7 @@ void led_close(unsigned int id)
 void read_key(void)
 {
 	unsigned int value;
+	IIC_IEN(INT);
 	value = LED_GET_GPIO_DATA(INT);
     if(value>>INT)
 	{
@@ -6340,22 +6353,32 @@ static int key_init(void)
     stop();   
 
     value = LED_GET_GPIO_DATA(INT);
-    printk(KERN_INFO "the key's value is %d\n", value>>INT);
+    printk(KERN_INFO "the key's value is %d\n", temp);
 	return 0;
 }
 
 
 void mytimer_task(struct timer_list  *timer)
 {
-    unsigned int temp,temp1 = 0; 
-    mod_timer(&mytimer,jiffies + msecs_to_jiffies(2500));
-	// led_open(SYS_RED_LED);
-	// printk("this is my timer1 interrupt\n");
-	
-	flag_led = ~flag_led;
-	led_shansuo(VPN_LED);
-	read_key();
-	msleep(10);
+    mod_timer(&mytimer,jiffies + msecs_to_jiffies(500));
+	unsigned int value;
+
+	if (LED_MODE(ledCtrl[my_key].mode) == LED_MODE_INPUT) {
+		unsigned int temp = get_register(0);
+		temp |= 0x01;
+		IIC_IEN(INT);
+		start();
+		iic_write(write_address);
+		iic_write(Config_Port_0);
+		iic_write(temp);
+		stop();   
+
+		value = LED_GET_GPIO_DATA(INT);
+	}
+
+	if(value)
+		flag_led = ~flag_led;
+	return;
 }
 
 static int __init tc3162_led_init(void)
