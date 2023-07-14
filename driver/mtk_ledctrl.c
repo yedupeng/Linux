@@ -257,6 +257,8 @@ static struct timer_list mytimer;
 #define enable_led1 0xF8
 #define enable_led0 0x21
 
+unsigned int register0 = 0xff;
+unsigned int register1 = 0xff;
 
 static void delay(unsigned int time_num)
 {
@@ -2128,7 +2130,7 @@ unsigned int get_register(unsigned int id)
 	unsigned int temp,temp1 = 0; 
     start();
     iic_write(write_address);
-    iic_write(In_Port0);
+    iic_write(Out_Port0);
     delay(sleep_time);
     delay(sleep_time); 
     DO_IIC_SH(SCL);
@@ -3028,13 +3030,6 @@ void ledTimer(unsigned long data)
 #endif
 #endif
 
-#ifdef IS_LED_GPIO
-	led_shansuo(WEB_MASTER_LED);
-	msleep(10);
-	led_shansuo(VPN_LED);
-	msleep(10);
-#endif
-
 #ifdef TCSUPPORT_WLAN_LED_BY_SW
 	if(WLan_Led_Flash_Op_hook)
 			WLan_Led_Flash_Op_hook(WLAN_DEFAULT);
@@ -3406,6 +3401,8 @@ int check_wlan_wps_gpio(void)
 
 void inputButtonTimer(struct timer_list  *timer)
 {
+	led_shansuo(VPN_LED);
+	delay(10);
 	if ((get_led_data(getSysResetGpio()) == 0) \
 		&& (LED_MODE(ledCtrl[GPIO_SYS_RESET].mode) == LED_MODE_INPUT)) {		/* reset button is pressed */
 		reset_button_stats++;
@@ -5816,6 +5813,7 @@ void Usb_Led_Flash_Op(unsigned int opmode ,unsigned int phyport)
 		}
 		else if(USBPHYPORT2 == phyport_sw)
 		{
+			printf("1\n");
 			temp = (usb_dev_status & 0xffff0000) >> 16;
 			temp = --temp < 0? 0:temp;
 			usb_dev_status &= 0x0000ffff;
@@ -5880,20 +5878,22 @@ void Usb_Led_Flash_Op(unsigned int opmode ,unsigned int phyport)
 			
 			if(usb_phyport_status & (1<<USBPHYPORT2))
 			{
-				ledTurnOn(LED_USB2_STATUS);
+				if(temp)
+					ledTurnOn(LED_USB2_STATUS);
 			}
 			else
 			{
-				printk("4\n");
 				ledTurnOff(LED_USB2_STATUS);
 			}
 		}
 		else{
-			printk("5\n");
-			ledTurnOff(LED_USB_STATUS);
-			ledTurnOff(LED_USB_ACT_STATUS);
-			ledTurnOff(LED_USB2_STATUS);
-			ledTurnOff(LED_USB2_ACT_STATUS);
+			if(!temp)
+			{
+				ledTurnOff(LED_USB_STATUS);
+				ledTurnOff(LED_USB_ACT_STATUS);
+				ledTurnOff(LED_USB2_STATUS);
+				ledTurnOff(LED_USB2_ACT_STATUS);
+			}
 		}
 #endif
 		break;
@@ -6266,11 +6266,18 @@ void led_shansuo(unsigned int id)
 // led open
 void led_open(unsigned int id)
 {
-	unsigned int temp = get_register(id);
 	if(id>7)
-		temp &= ~(1<<(id-8));
+	{
+		if(id == 9)
+			printk("before %d\n", register0);
+		register1 &= ~(1<<(id-8));
+		if(id == 9)
+			printk("late %d\n", register0);
+	}
 	else
-		temp &= ~(1<<id);
+	{
+		register0 &= ~(1<<id);
+	}
 	start();
 	iic_write(write_address);
 	iic_write(Config_Port_1);
@@ -6286,22 +6293,26 @@ void led_open(unsigned int id)
 	if(id > 7)
 	{
 		iic_write(Out_Port1);
+		iic_write(register1);
 	}else
 	{
 		iic_write(Out_Port0);
+		iic_write(register0);
 	}
-
-	iic_write(temp);
 	stop();
 }
 // led close
 void led_close(unsigned int id)
 {
-	unsigned int temp = get_register(id);
 	if(id>7)
-		temp |= (1<<(id-8));
+	{
+		register1 |= (1<<(id-8));
+	}
 	else
-		temp |= (1<<id);
+	{
+		register0 |= (1<<id);
+	}
+
 	start();
 	iic_write(write_address);
 	iic_write(Config_Port_1);
@@ -6317,44 +6328,28 @@ void led_close(unsigned int id)
 	if(id > 7)
 	{
 		iic_write(Out_Port1);
+		iic_write(register1);
 	}else
 	{
 		iic_write(Out_Port0);
+		iic_write(register0);
 	}
 
-	iic_write(temp);
 	stop();	
 }
 // read key
 void read_key(void)
 {
 	unsigned int value;
-	IIC_IEN(INT);
-	value = LED_GET_GPIO_DATA(INT);
-    if(value>>INT)
-	{
-		printk(KERN_INFO "the key's value is %d\n", value>>INT);
-	}else
-	{
-		printk(KERN_INFO "the key's value is %d\n", value>>INT);
-	}
-}
-
-static int key_init(void)
-{
-	unsigned int temp = get_register(0);
-	unsigned int value;
-	temp |= 0x01;
     IIC_IEN(INT);
     start();
     iic_write(write_address);
     iic_write(Config_Port_0);
-    iic_write(temp);
+    iic_write(enable_led0);
     stop();   
 
     value = LED_GET_GPIO_DATA(INT);
-    printk(KERN_INFO "the key's value is %d\n", temp);
-	return 0;
+    printk(KERN_INFO "the key's value is %d\n", value>>INT);
 }
 
 
@@ -6362,22 +6357,12 @@ void mytimer_task(struct timer_list  *timer)
 {
     mod_timer(&mytimer,jiffies + msecs_to_jiffies(500));
 	unsigned int value;
-
-	if (LED_MODE(ledCtrl[my_key].mode) == LED_MODE_INPUT) {
-		unsigned int temp = get_register(0);
-		temp |= 0x01;
-		IIC_IEN(INT);
-		start();
-		iic_write(write_address);
-		iic_write(Config_Port_0);
-		iic_write(temp);
-		stop();   
-
-		value = LED_GET_GPIO_DATA(INT);
-	}
-
-	if(value)
-		flag_led = ~flag_led;
+	flag_led = ~flag_led;
+#ifdef IS_LED_GPIO
+	led_shansuo(WEB_MASTER_LED);
+	delay(10);
+#endif
+	read_key();
 	return;
 }
 
@@ -6433,7 +6418,6 @@ static int __init tc3162_led_init(void)
 	DO_IIC_SH(SDA);
     DO_IIC_SH(SCL);
 
-	key_init();
 	led_open(SYS_RED_LED);
 #endif
 
