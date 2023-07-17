@@ -221,7 +221,7 @@ MODULE_LICENSE("GPL");
 
 #define LED_MODE_I2C				6
 #define USB_LAST_STATE              4 
-#define my_key                      32
+#define my_key                      58
 #define READ_CONFIG                 255
 
 #ifdef IS_LED_GPIO
@@ -256,7 +256,7 @@ static struct timer_list mytimer;
 
 #define close_light 0xFF
 #define enable_led1 0xF8
-#define enable_led0 0x21
+#define enable_led0 0x01
 
 unsigned int register0 = 0xff;
 unsigned int register1 = 0xff;
@@ -480,8 +480,8 @@ SHARE_PIN_INFO force_gpio_map[GPIO_MAX] = {
 	{	{{IOMUX_REG_1, 9}, {IOMUX_REG_2, 0}, {IOMUX_REG_END,0}}}, //35
 	{	{{IOMUX_REG_1, 10}, {IOMUX_REG_END,0}}}, //36
 	{	{{IOMUX_REG_1, 11}, {IOMUX_REG_2, 0}, {IOMUX_REG_END,0}}}, //37
-	{	{{IOMUX_REG_1, 26}, {IOMUX_REG_END,0}}}, //38
-	{	{{IOMUX_REG_1, 26}, {IOMUX_REG_2, 0}, {IOMUX_REG_END,0}}}, //39
+	{	{{IOMUX_REG_1, 0}, {IOMUX_REG_END,0}}}, //38
+	{	{{IOMUX_REG_1, 0}, {IOMUX_REG_2, 0}, {IOMUX_REG_END,0}}}, //39
 	{	{{IOMUX_REG_1, 28}, {IOMUX_REG_END,0}}},
 	{	{{IOMUX_REG_1, 29}, {IOMUX_REG_END,0}}}
 };
@@ -6257,28 +6257,6 @@ void led_open(unsigned int id)
 	{
 		register0 &= ~(1<<id);
 	}
-	start();
-	iic_write(write_address);
-	iic_write(Config_Port_1);
-	iic_write(enable_led1);
-	iic_write(enable_led0);
-	stop();
-
-	delay(sleep_time);
-	delay(sleep_time);
-
-	start();
-	iic_write(write_address);
-	if(id > 7)
-	{
-		iic_write(Out_Port1);
-		iic_write(register1);
-	}else
-	{
-		iic_write(Out_Port0);
-		iic_write(register0);
-	}
-	stop();
 }
 // led close
 void led_close(unsigned int id)
@@ -6291,35 +6269,16 @@ void led_close(unsigned int id)
 	{
 		register0 |= (1<<id);
 	}
-
-	start();
-	iic_write(write_address);
-	iic_write(Config_Port_1);
-	iic_write(enable_led1);
-	iic_write(enable_led0);
-	stop();
-
-	delay(sleep_time);
-	delay(sleep_time);
-
-	start();
-	iic_write(write_address);
-	if(id > 7)
-	{
-		iic_write(Out_Port1);
-		iic_write(register1);
-	}else
-	{
-		iic_write(Out_Port0);
-		iic_write(register0);
-	}
-
-	stop();	
 }
 // read key
-unsigned int read_key(void)
-{
-	unsigned int temp,temp1 = 0; 
+
+
+void mytimer_task(struct timer_list  *timer)
+{  
+    mod_timer(&mytimer,jiffies + msecs_to_jiffies(500));
+	unsigned int value;
+	unsigned int temp, temp1;
+    value = LED_GET_GPIO_DATA(INT);
     start();
     iic_write(write_address);
     iic_write(In_Port0);
@@ -6330,38 +6289,31 @@ unsigned int read_key(void)
     start();
     iic_write(read_address);
     temp = ii2_read(0);
-	temp1 = ii2_read(1);
+    temp1 = ii2_read(1);
     stop();
-	printk("In_Port0: %d\n", temp);
+    printk(KERN_INFO "the value is %d\n", value);
+	printk(KERN_INFO "the value1 is %d\n", temp);
+	printk(KERN_INFO "the value2 is %d\n", temp1);
+	flag_led = ~flag_led;
 
-	start();
-    iic_write(write_address);
-    iic_write(Config_Port_0);
-    delay(sleep_time);
-    delay(sleep_time); 
-    DO_IIC_SH(SCL);
-    DO_IIC_SH(SDA);
-    start();
-    iic_write(read_address);
-    temp = ii2_read(0);
-	temp1 = ii2_read(1);
-    stop();
-	printk("Config_Port_0: %d\n", temp);
-	temp = LED_GET_GPIO_DATA(INT);
-	printk("LED_GET_GPIO_DATA: %d\n", temp);
-	return temp; 
-
-}
-
-
-void mytimer_task(struct timer_list  *timer)
-{
-    mod_timer(&mytimer,jiffies + msecs_to_jiffies(500));
-	unsigned int value;
-	value = read_key();
-	if(value)
+	if(!value)
 	{
-		flag_led = ~flag_led;
+		start();
+		iic_write(write_address);
+		iic_write(Config_Port_0);
+		iic_write(enable_led0);
+		iic_write(enable_led1);
+		stop();
+
+		delay(sleep_time);
+		delay(sleep_time);
+
+		start();
+		iic_write(write_address);
+		iic_write(Out_Port0);
+		iic_write(register0);
+		iic_write(register1);
+		stop();
 	}
 	return;
 }
@@ -6418,7 +6370,15 @@ static int __init tc3162_led_init(void)
 	DO_IIC_SH(SDA);
     DO_IIC_SH(SCL);
 
-	led_open(SYS_RED_LED);
+	IIC_IEN(INT);
+    start();
+    iic_write(write_address);
+    iic_write(6);
+    iic_write(255);
+    stop();   
+	unsigned int value;
+    value = LED_GET_GPIO_DATA(INT);
+    printk(KERN_INFO "the key's value is %d\n", value>>INT);
 #endif
 
 #if defined(TCSUPPORT_CT_BUTTONDETECT)
