@@ -284,23 +284,23 @@ void light_close(void)
 
 void mytimer_task(struct timer_list  *timer)
 {
-    unsigned int temp,temp1 = 0; 
-    mod_timer(&mytimer,jiffies + msecs_to_jiffies(4000));
-    wake_up(&wait_queue);
-    value = LED_GET_GPIO_DATA(INT);
-    start();
-    iic_write(write_address);
-    iic_write(In_Port0);
-    delay(sleep_time);
-    delay(sleep_time); 
-    DO_IIC_SH(SCL);
-    DO_IIC_SH(SDA);
-    start();
-    iic_write(read_address);
-    temp = ii2_read(0);
-    temp1 = ii2_read(1);
-    stop();
-    printk(KERN_INFO "the value2 is %d\n", value>>26);
+    // unsigned int temp,temp1 = 0; 
+    // mod_timer(&mytimer,jiffies + msecs_to_jiffies(4000));
+    // wake_up(&wait_queue);
+    // value = LED_GET_GPIO_DATA(INT);
+    // start();
+    // iic_write(write_address);
+    // iic_write(In_Port0);
+    // delay(sleep_time);
+    // delay(sleep_time); 
+    // DO_IIC_SH(SCL);
+    // DO_IIC_SH(SDA);
+    // start();
+    // iic_write(read_address);
+    // temp = ii2_read(0);
+    // temp1 = ii2_read(1);
+    // stop();
+    // printk(KERN_INFO "the value2 is %d\n", value>>26);
 }
 
 static int open(struct inode *inode, struct file *filp)
